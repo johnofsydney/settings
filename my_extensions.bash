@@ -112,6 +112,9 @@ EOF
 # The current directory is at the top
 # of the stack.
 #
+# retaining "dirs -c" to clear list, so as to not forget
+# what is under the hood.
+
 function stack_cd {
     if [ $1 ]; then
         # use the pushd bash command to push the directory
@@ -175,4 +178,61 @@ function findgrep {
   # echo grepping inside them for $2
 
   # find . -name node_modules -prune -o -type f -iname "*.json" -exec grep -n "serverless" {} \+
+}
+
+
+function make_slink_here {
+  # $ ln -s GA/WDi24/ProjectBreak/divBow/ mini_projects/divBow
+
+  # echo -e "\033[1;31m This is red text \033[0m"
+  # printf "\e[32mThis is green line.\e[m\n"
+
+  printf "\e[32mmaking a sym link of \e[m"
+  printf "\e[36m"
+  printf $@
+  printf "\e[m\n"
+
+  printf "\e[32minto \e[m"
+  printf "\e[35m"
+  printf $PWD
+  printf "\e[m\n"
+
+  containing_directory=`dirname $@`
+  folder_to_link=`basename $@`
+
+  ln -s $@ $folder_to_link
+}
+
+
+
+alias crap="create-react-app"
+alias cujq="curl https://code.jquery.com/jquery-3.3.1.js > js/jquery.js"
+alias cuus="curl https://raw.githubusercontent.com/jashkenas/underscore/master/underscore.js > js/underscore.js"
+
+alias killspring="ps ax | grep spring | cut -f1 -d' ' | xargs kill"
+
+# # Functions
+# function gac () {
+#   git add .
+#   git commit -m "$@"
+# }
+#
+# function mkcd () { mkdir -p "$@" && cd "$@"; }
+#
+# function hh () {
+#   history | grep "$@"
+# }
+
+function npj () {
+  mkdir -p "$@"
+  cd "$@"
+  mkdir "js"
+  mkdir "css"
+  cujq
+  cuus
+  touch "index.html"
+  touch "README.md"
+  touch "js/main.js"
+  touch "css/master.css"
+  aa
 }
