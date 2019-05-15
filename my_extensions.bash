@@ -39,7 +39,7 @@ alias ..="cd .."
 alias ...="cd ../.."
 alias ....="cd ../../.."
 alias cat="bat"
-alias nn="npm test"
+alias nn="npm test && eslint spec *.js"
 
 function gac () {
   git add .
