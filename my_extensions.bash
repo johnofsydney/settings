@@ -26,7 +26,7 @@ export LSCOLORS=gxfxcxdxbxegedabagacad
 alias ls="ls -G"
 alias ll="ls -laFG"
 alias reloadbash="source ~/.bash_profile"
-alias atombashprofile="atom ~/.bash_profile"
+alias atombashprofile="atom ~/.bash_profile && atom ~/Projects/John/settings/"
 
 alias aa="atom ."
 alias cc="code ."
@@ -40,6 +40,7 @@ alias ...="cd ../.."
 alias ....="cd ../../.."
 alias cat="bat"
 alias nn="npm test && eslint spec *.js"
+alias be="bundle exec"
 
 function gac () {
   git add .
