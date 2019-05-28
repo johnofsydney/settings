@@ -1,0 +1,55 @@
+  {
+  "atomKeymap.promptV3Features": true,
+  "workbench.colorTheme": "Atom One Light",
+  "files.autoSave": "afterDelay",
+  "files.autoSaveDelay": 5000,
+  "editor.multiCursorModifier": "ctrlCmd",
+  "editor.formatOnPaste": true,
+  "editor.formatOnSave": false,
+  "editor.wordWrap": "on",
+  // Controls if quick suggestions should show up while typing
+  "editor.quickSuggestions": {
+    "other": true,
+    "comments": false,
+    "strings": false
+  },
+  // Controls if suggestions should be accepted on 'Enter' - in addition to 'Tab'. Helps to avoid ambiguity between inserting new lines or accepting suggestions. The value 'smart' means only accept a suggestion with Enter when it makes a textual change
+  "editor.acceptSuggestionOnEnter": "on",
+  // Controls the delay in ms after which quick suggestions will show up.
+  "editor.quickSuggestionsDelay": 10,
+  // Controls if suggestions should automatically show up when typing trigger characters
+  "editor.suggestOnTriggerCharacters": true,
+  // Controls if pressing tab inserts the best suggestion and if tab cycles through other suggestions
+  "editor.tabCompletion": "on",
+  "editor.rulers": [80, 120],
+  "workbench.colorCustomizations": {
+    "editorRuler.foreground": "#ff333388"
+  },
+  "window.zoomLevel": -1,
+  "workbench.startupEditor": "newUntitledFile",
+  "breadcrumbs.enabled": true,
+  "emmet.includeLanguages": {
+    "erb": "html"
+  },
+  "emmet.showExpandedAbbreviation": "always",
+  "highlight-matching-tag.enabled": true,
+  "ruby.intellisense": "rubyLocate",
+  "ruby.codeCompletion": "rcodetools",
+  "scss.lint.argumentsInColorFunction": "warning",
+  "bracket-pair-colorizer-2.colors": ["Magenta", "DeepSkyBlue", "Teal"],
+  "editor.tokenColorCustomizations": {
+    "textMateRules": [
+      {
+        "scope": "comment",
+        "settings": {
+          "fontStyle": "italic"
+        }
+      }
+    ]
+  },
+  // some comments, seeing if all is well. will delete later
+  // $ cd ~/Library/Application Support/Code/User
+  // $ ln -s ~/Projects/John/settings/vscode/settings.json settings.json
+  // $ ln -s ~/Projects/John/settings/vscode/keybindings.json keybindings.json
+  // NB change dir path above to actual path to settings.
+}

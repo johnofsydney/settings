@@ -39,8 +39,9 @@ alias ..="cd .."
 alias ...="cd ../.."
 alias ....="cd ../../.."
 alias cat="bat"
-alias nn="npm test && eslint spec *.js"
+alias nn="npm run test_dev && eslint spec *.js"
 alias be="bundle exec"
+alias ber="bundle exec rspec"
 
 function gac () {
   git add .
