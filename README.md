@@ -1,2 +1,4 @@
-# bash
-bash stuff
+# settings
+bash stuff (aliases etc)
+vs code settings 
+
