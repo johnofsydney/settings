@@ -27,6 +27,7 @@ alias ls="ls -G"
 alias ll="ls -laFG"
 alias reloadbash="source ~/.bash_profile"
 alias atombashprofile="atom ~/.bash_profile && atom ~/Projects/John/settings/"
+alias settings="code ~/.bash_profile && code ~/Projects/John/settings/"
 
 alias aa="atom ."
 alias cc="code ."
@@ -42,6 +43,7 @@ alias cat="bat"
 alias nn="npm run test_dev && eslint spec *.js"
 alias be="bundle exec"
 alias ber="bundle exec rspec"
+alias becop="bundle exec rubocop"
 
 function gac () {
   git add .
