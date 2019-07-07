@@ -1,7 +1,7 @@
 
 
 PROMPT_COMMAND='history -a'
-# appends shell history to histoery on exit, rather than overwrite. maybe future improvements
+# appends shell history to histoery on exit, rather than overwrite. maybe future improvements?
 
 ###################################
 
@@ -11,8 +11,9 @@ export LSCOLORS=gxfxcxdxbxegedabagacad
 alias ls="ls -G"
 alias ll="ls -laFG"
 alias reloadbash="source ~/.bash_profile"
-alias atombashprofile="atom ~/.bash_profile && atom ~/Projects/John/settings/"
-alias settings="code ~/.bash_profile && code ~/.zshrc && code ~/Projects/John/settings/"
+alias reloadz="source ~/.zshrc"
+# alias atombashprofile="atom ~/.bash_profile && atom ~/Projects/John/settings/"
+alias settings="code ~/Projects/John/settings/  && code ~/.bash_profile && code ~/.zshrc"
 
 alias aa="atom ."
 alias cc="code ."

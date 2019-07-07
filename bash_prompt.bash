@@ -17,5 +17,6 @@ function markup_git_branch {
     fi
   fi
 }
-export PS1='\n\[\e[32m\]\w\[\e[m\] $(markup_git_branch $(git_branch)) \n$ '
+export PS1='\n\[\e[32m\]\w\[\e[m\] $(markup_git_branch $(git_branch)) \e[0;35m\t\e[m\n$ '
+
 source ~/.git-completion.bash
