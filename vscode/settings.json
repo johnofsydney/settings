@@ -1,6 +1,5 @@
   {
   "atomKeymap.promptV3Features": true,
-  "workbench.colorTheme": "Atom One Light",
   "files.autoSave": "afterDelay",
   "files.autoSaveDelay": 5000,
   "editor.multiCursorModifier": "ctrlCmd",
@@ -25,7 +24,7 @@
   "workbench.colorCustomizations": {
     "editorRuler.foreground": "#ff333388"
   },
-  "window.zoomLevel": -1,
+  "window.zoomLevel": 0,
   "workbench.startupEditor": "newUntitledFile",
   "breadcrumbs.enabled": true,
   "emmet.includeLanguages": {
@@ -47,9 +46,15 @@
       }
     ]
   },
-  // some comments, seeing if all is well. will delete later
-  // $ cd ~/Library/Application Support/Code/User
-  // $ ln -s ~/Projects/John/settings/vscode/settings.json settings.json
-  // $ ln -s ~/Projects/John/settings/vscode/keybindings.json keybindings.json
-  // NB change dir path above to actual path to settings.
+  // The number of spaces a tab is equal to. This setting is overridden
+  // based on the file contents when `editor.detectIndentation` is true.
+  "editor.tabSize": 2,
+  // Insert spaces when pressing Tab. This setting is overriden
+  // based on the file contents when `editor.detectIndentation` is true.
+  "editor.insertSpaces": true,
+  // When opening a file, `editor.tabSize` and `editor.insertSpaces`
+  // will be detected based on the file contents. Set to false to keep
+  // the values you've explicitly set, above.
+  "editor.detectIndentation": false,
+  "workbench.colorTheme": "Atom One Light"
 }
