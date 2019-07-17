@@ -24,7 +24,7 @@
   "workbench.colorCustomizations": {
     "editorRuler.foreground": "#ff333388"
   },
-  "window.zoomLevel": 0,
+  "window.zoomLevel": -2,
   "workbench.startupEditor": "newUntitledFile",
   "breadcrumbs.enabled": true,
   "emmet.includeLanguages": {
@@ -56,5 +56,6 @@
   // will be detected based on the file contents. Set to false to keep
   // the values you've explicitly set, above.
   "editor.detectIndentation": false,
-  "workbench.colorTheme": "Atom One Light"
+  "workbench.colorTheme": "Atom One Light",
+  "terminal.integrated.shell.osx": "/bin/zsh"
 }
