@@ -3,6 +3,9 @@
 PROMPT_COMMAND='history -a'
 # appends shell history to histoery on exit, rather than overwrite. maybe future improvements?
 
+HISTFILESIZE=10000000
+HISTSIZE=10000000
+# https://www.katescomment.com/how-to-increase-mac-osx-bash-shell-history-length/
 ###################################
 
 export LSCOLORS=gxfxcxdxbxegedabagacad
