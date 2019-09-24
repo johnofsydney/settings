@@ -20,6 +20,7 @@ alias settings="code ~/Projects/John/settings/  && code ~/.bash_profile && code 
 
 alias aa="atom ."
 alias cc="code ."
+alias xx="exit"
 alias ga="git add ."
 alias gst="git status"
 alias glog="git log --oneline --graph --decorate"
@@ -33,6 +34,7 @@ alias nn="npm run test_dev && eslint spec *.js"
 alias be="bundle exec"
 alias ber="bundle exec rspec"
 alias becop="bundle exec rubocop"
+alias bb="ber && becop"
 
 function gac () {
   git add .
