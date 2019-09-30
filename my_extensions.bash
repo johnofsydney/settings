@@ -3,6 +3,9 @@
 PROMPT_COMMAND='history -a'
 # appends shell history to histoery on exit, rather than overwrite. maybe future improvements?
 
+HISTFILESIZE=10000000
+HISTSIZE=10000000
+# https://www.katescomment.com/how-to-increase-mac-osx-bash-shell-history-length/
 ###################################
 
 export LSCOLORS=gxfxcxdxbxegedabagacad
@@ -17,6 +20,7 @@ alias settings="code ~/Projects/John/settings/  && code ~/.bash_profile && code 
 
 alias aa="atom ."
 alias cc="code ."
+alias xx="exit"
 alias ga="git add ."
 alias gst="git status"
 alias glog="git log --oneline --graph --decorate"
@@ -30,6 +34,7 @@ alias nn="npm run test_dev && eslint spec *.js"
 alias be="bundle exec"
 alias ber="bundle exec rspec"
 alias becop="bundle exec rubocop"
+alias bb="ber && becop"
 
 function gac () {
   git add .
@@ -91,109 +96,75 @@ EOF
 
 
 
-####################################################
-####           better cd with history           ####
-####################################################
-# from https://aijaz.net/2010/02/20/navigating-the-directory-stack-in-bash/index.html
+      # ####################################################
+      # ####           better cd with history           ####
+      # ####################################################
+      # # from https://aijaz.net/2010/02/20/navigating-the-directory-stack-in-bash/index.html
 
-# An enhanced 'cd' - push directories
-# onto a stack as you navigate to it.
-#
-# The current directory is at the top
-# of the stack.
-#
-# retaining "dirs -c" to clear list, so as to not forget
-# what is under the hood.
+      # # An enhanced 'cd' - push directories
+      # # onto a stack as you navigate to it.
+      # #
+      # # The current directory is at the top
+      # # of the stack.
+      # #
+      # # retaining "dirs -c" to clear list, so as to not forget
+      # # what is under the hood.
 
-function stack_cd {
-    if [ $1 ]; then
-        # use the pushd bash command to push the directory
-        # to the top of the stack, and enter that directory
-        pushd "$1" > /dev/null
-    else
-        # the normal cd behavior is to enter $HOME if no
-        # arguments are specified
-        pushd $HOME > /dev/null
-    fi
-    # clear
-    ls
-}
-# the cd command is now an alias to the stack_cd function
-#
-alias cd=stack_cd
-# Swap the top two directories on the stack
-#
-function swap {
-    pushd > /dev/null
-}
-# s is an alias to the swap function
-alias s=swap
-# Pop the top (current) directory off the stack
-# and move to the next directory
-#
-function pop_stack {
-    popd > /dev/null
-}
-alias p=pop_stack
-# Display the stack of directories and prompt
-# the user for an entry.
-#
-# If the user enters 'p', pop the stack.
-# If the user enters a number, move that
-# directory to the top of the stack
-# If the user enters 'q', don't do anything.
-#
-function display_stack
-{
-    dirs -v
-    echo -n "#: "
-    read dir
-    if [[ $dir = 'p' ]]; then
-        pushd > /dev/null
-    elif [[ $dir != 'q' ]]; then
-        d=$(dirs -l +$dir);
-        popd +$dir > /dev/null
-        pushd "$d" > /dev/null
-    fi
-}
-alias d=display_stack
+      # function stack_cd {
+      #     if [ $1 ]; then
+      #         # use the pushd bash command to push the directory
+      #         # to the top of the stack, and enter that directory
+      #         pushd "$1" > /dev/null
+      #     else
+      #         # the normal cd behavior is to enter $HOME if no
+      #         # arguments are specified
+      #         pushd $HOME > /dev/null
+      #     fi
+      #     # clear
+      #     ls
+      # }
+      # # the cd command is now an alias to the stack_cd function
+      # #
+      # alias cd=stack_cd
+      # # Swap the top two directories on the stack
+      # #
+      # function swap {
+      #     pushd > /dev/null
+      # }
+      # # s is an alias to the swap function
+      # alias s=swap
+      # # Pop the top (current) directory off the stack
+      # # and move to the next directory
+      # #
+      # function pop_stack {
+      #     popd > /dev/null
+      # }
+      # alias p=pop_stack
+      # # Display the stack of directories and prompt
+      # # the user for an entry.
+      # #
+      # # If the user enters 'p', pop the stack.
+      # # If the user enters a number, move that
+      # # directory to the top of the stack
+      # # If the user enters 'q', don't do anything.
+      # #
+      # function display_stack
+      # {
+      #     dirs -v
+      #     echo -n "#: "
+      #     read dir
+      #     if [[ $dir = 'p' ]]; then
+      #         pushd > /dev/null
+      #     elif [[ $dir != 'q' ]]; then
+      #         d=$(dirs -l +$dir);
+      #         popd +$dir > /dev/null
+      #         pushd "$d" > /dev/null
+      #     fi
+      # }
+      # alias d=display_stack
 
 
 ###########################
-
-function findgrep {
-  foo=$@
-  echo ${@}
-  # echo finding files matching $1
-  # echo grepping inside them for $2
-
-  # find . -name node_modules -prune -o -type f -iname "*.json" -exec grep -n "serverless" {} \+
-}
-
-
-function make_slink_here {
-  # $ ln -s GA/WDi24/ProjectBreak/divBow/ mini_projects/divBow
-
-  # echo -e "\033[1;31m This is red text \033[0m"
-  # printf "\e[32mThis is green line.\e[m\n"
-
-  printf "\e[32mmaking a sym link of \e[m"
-  printf "\e[36m"
-  printf $@
-  printf "\e[m\n"
-
-  printf "\e[32minto \e[m"
-  printf "\e[35m"
-  printf $PWD
-  printf "\e[m\n"
-
-  containing_directory=`dirname $@`
-  folder_to_link=`basename $@`
-
-  ln -s $@ $folder_to_link
-}
-
-
 
 alias crap="create-react-app"
 alias cujq="curl https://code.jquery.com/jquery-3.3.1.js > js/jquery.js"
@@ -201,17 +172,7 @@ alias cuus="curl https://raw.githubusercontent.com/jashkenas/underscore/master/u
 
 alias killspring="ps ax | grep spring | cut -f1 -d' ' | xargs kill"
 
-# # Functions
-# function gac () {
-#   git add .
-#   git commit -m "$@"
-# }
-#
-# function mkcd () { mkdir -p "$@" && cd "$@"; }
-#
-# function hh () {
-#   history | grep "$@"
-# }
+
 
 function npj () {
   mkdir -p "$@"
