@@ -34,7 +34,7 @@ alias nn="npm run test_dev && eslint spec *.js"
 alias be="bundle exec"
 alias ber="bundle exec rspec"
 alias becop="bundle exec rubocop"
-alias bb="ber && becop"
+alias bb="ber && becop && grep binding.pry ./ -r"
 
 function gac () {
   git add .
