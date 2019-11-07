@@ -35,7 +35,7 @@
   "ruby.intellisense": "rubyLocate",
   "ruby.codeCompletion": "rcodetools",
   "scss.lint.argumentsInColorFunction": "warning",
-  "bracket-pair-colorizer-2.colors": ["Magenta", "DeepSkyBlue", "Teal"],
+  "bracket-pair-colorizer-2.colors": ["Magenta", "DeepSkyBlue", "DarkOrange", "DarkOrchid", "Sienna"],
   "editor.tokenColorCustomizations": {
     "textMateRules": [
       {
