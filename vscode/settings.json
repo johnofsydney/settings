@@ -112,5 +112,6 @@
       "value": "#42b883"
     }
   ],
-  "peacock.surpriseMeOnStartup": true
+  "peacock.surpriseMeOnStartup": true,
+  "explorer.confirmDragAndDrop": false
 }
