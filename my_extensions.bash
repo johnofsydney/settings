@@ -12,7 +12,7 @@ export LSCOLORS=gxfxcxdxbxegedabagacad
 # https://geoff.greer.fm/lscolors/
 
 alias ls="ls -G"
-alias ll="ls -laFG"
+alias lg="ls -laFG"
 alias reloadbash="source ~/.bash_profile"
 alias reloadz="source ~/.zshrc"
 # alias atombashprofile="atom ~/.bash_profile && atom ~/Projects/John/settings/"
@@ -33,8 +33,9 @@ alias cat="bat"
 alias nn="npm run test_dev && eslint spec *.js"
 alias be="bundle exec"
 alias ber="bundle exec rspec"
+alias beer=ber
 alias becop="bundle exec rubocop"
-alias bb="ber && becop"
+alias bb="ber && becop && grep -r --exclude-dir=node_modules binding.pry ./"
 
 function gac () {
   git add .

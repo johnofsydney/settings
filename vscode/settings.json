@@ -35,7 +35,7 @@
   "ruby.intellisense": "rubyLocate",
   "ruby.codeCompletion": "rcodetools",
   "scss.lint.argumentsInColorFunction": "warning",
-  "bracket-pair-colorizer-2.colors": ["Magenta", "DeepSkyBlue", "Teal"],
+  "bracket-pair-colorizer-2.colors": ["Magenta", "DeepSkyBlue", "DarkOrange", "DarkOrchid", "Sienna"],
   "editor.tokenColorCustomizations": {
     "textMateRules": [
       {
@@ -56,6 +56,14 @@
   // will be detected based on the file contents. Set to false to keep
   // the values you've explicitly set, above.
   "editor.detectIndentation": false,
+  // Defining custom colors instead of default "Rainbow" for dark backgrounds.
+  // (Sorry: Changing them needs an editor restart for now!)
+  "indentRainbow.colors": [
+    "rgba(255,255,64,0.2)",
+    "rgba(127,255,127,0.2)",
+    "rgba(255,127,255,0.2)",
+    "rgba(79,236,236,0.2)"
+  ],
   "workbench.colorTheme": "Atom One Light",
   "terminal.integrated.shell.osx": "/bin/zsh",
   "peacock.favoriteColors": [
