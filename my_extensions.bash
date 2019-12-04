@@ -35,7 +35,7 @@ alias be="bundle exec"
 alias ber="bundle exec rspec"
 alias beer=ber
 alias becop="bundle exec rubocop"
-alias bb="ber && becop && grep -r --exclude-dir=node_modules binding.pry ./"
+alias bb="ber && becop && grep -r --exclude-dir={node_modules,tmp} binding.pry ./"
 
 function gac () {
   git add .
