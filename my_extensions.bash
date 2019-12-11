@@ -33,9 +33,10 @@ alias cat="bat"
 alias nn="npm run test_dev && eslint spec *.js"
 alias be="bundle exec"
 alias ber="bundle exec rspec"
+alias berdoc="bundle exec rspec --format=documentation"
 alias beer=ber
 alias becop="bundle exec rubocop"
-alias bb="ber && becop && grep -r --exclude-dir=node_modules binding.pry ./"
+alias bb="ber && becop && grep -r --exclude-dir={node_modules,tmp} binding.pry ./"
 
 function gac () {
   git add .
