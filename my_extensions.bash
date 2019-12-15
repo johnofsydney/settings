@@ -8,8 +8,10 @@ HISTSIZE=10000000
 # https://www.katescomment.com/how-to-increase-mac-osx-bash-shell-history-length/
 ###################################
 
-export LSCOLORS=gxfxcxdxbxegedabagacad
+# export LSCOLORS=gxfxcxdxbxegedabagacad
 # https://geoff.greer.fm/lscolors/
+
+export LS_COLORS="di=1;36:ln=1;35"
 
 alias ls="ls -G"
 alias lg="ls -laFG"
