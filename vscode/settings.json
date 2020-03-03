@@ -24,7 +24,7 @@
   "workbench.colorCustomizations": {
     "editorRuler.foreground": "#ff333388"
   },
-  "window.zoomLevel": 0,
+  "window.zoomLevel": -1,
   "workbench.startupEditor": "newUntitledFile",
   "breadcrumbs.enabled": true,
   "emmet.includeLanguages": {
@@ -121,5 +121,6 @@
     }
   ],
   "peacock.surpriseMeOnStartup": true,
-  "explorer.confirmDragAndDrop": false
+  "explorer.confirmDragAndDrop": false,
+  "ruby.format": "rubocop"
 }
