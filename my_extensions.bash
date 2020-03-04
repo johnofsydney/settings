@@ -15,9 +15,9 @@ export LS_COLORS="di=1;36:ln=1;35"
 
 alias ls="ls -G"
 alias lg="ls -laFG"
-alias reloadbash="source ~/.bash_profile"
+
 alias reloadz="source ~/.zshrc"
-# alias atombashprofile="atom ~/.bash_profile && atom ~/Projects/John/settings/"
+
 alias settings="code ~/Projects/John/settings/  && code ~/.bash_profile && code ~/.zshrc"
 
 alias aa="atom ."
