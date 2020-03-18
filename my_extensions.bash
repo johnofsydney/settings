@@ -18,7 +18,8 @@ alias lg="ls -laFG"
 alias reloadbash="source ~/.bash_profile"
 alias reloadz="source ~/.zshrc"
 # alias atombashprofile="atom ~/.bash_profile && atom ~/Projects/John/settings/"
-alias settings="code ~/Projects/John/settings/  && code ~/.bash_profile && code ~/.zshrc"
+alias settings="no"
+# alias settings="cd ~/Projects/John/settings/  && code . && code ~/.bash_profile && code ~/.zshrc"
 
 alias aa="atom ."
 alias cc="code ."
@@ -38,7 +39,7 @@ alias ber="bundle exec rspec"
 alias berdoc="bundle exec rspec --format=documentation"
 alias beer=ber
 alias becop="bundle exec rubocop"
-alias bb="ber && becop && grep -r --exclude-dir={node_modules,tmp,coverage} binding.pry ./"
+alias bb="ber && becop && grep -r -n --exclude-dir={node_modules,tmp,coverage} binding.pry ./"
 
 function gac () {
   git add .
