@@ -121,5 +121,6 @@
     }
   ],
   "peacock.surpriseMeOnStartup": true,
-  "explorer.confirmDragAndDrop": false
+  "explorer.confirmDragAndDrop": false,
+  "ruby.format": "rubocop"
 }
