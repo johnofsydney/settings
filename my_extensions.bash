@@ -18,7 +18,7 @@ alias lg="ls -laFG"
 
 alias reloadz="source ~/.zshrc"
 
-alias settings="code ~/Projects/John/settings/  && code ~/.bash_profile && code ~/.zshrc"
+alias settings="cd ~/Projects/John/settings/ && code ~/Projects/John/settings/  && code ~/.zshrc"
 
 alias aa="atom ."
 alias cc="code ."
@@ -36,6 +36,7 @@ alias nn="npm run test_dev && eslint spec *.js"
 alias be="bundle exec"
 alias ber="bundle exec rspec"
 alias berdoc="bundle exec rspec --format=documentation"
+alias berf="bundle exec rspec --format=documentation --only-failures"
 alias beer=ber
 alias becop="bundle exec rubocop"
 alias bb="ber && becop && grep -r --exclude-dir={node_modules,tmp,coverage} binding.pry ./"
