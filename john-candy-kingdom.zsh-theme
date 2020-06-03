@@ -35,3 +35,6 @@ RPROMPT='%{$fg[red]%}%(?..✘)%{$reset_color%}'
 if (( $+functions[battery_pct_prompt] )); then
     RPROMPT+='$(battery_time_remaining) $(battery_pct_prompt)%{$reset_color%}'
 fi
+
+# $ ln -s /path/to/original /path/to/link
+# $ ln -s ~/Projects/John/settings/john-candy-kingdom.zsh-theme ~/.oh-my-zsh/themes/john-candy-kingdom.zsh-theme
