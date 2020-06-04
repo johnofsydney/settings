@@ -18,7 +18,7 @@ alias lg="ls -laFG"
 
 alias reloadz="source ~/.zshrc"
 
-alias settings="cd ~/Projects/John/settings/ && code ~/Projects/John/settings/  && code ~/.zshrc"
+alias settings="cd ~/Projects/John/settings/"
 
 alias aa="atom ."
 alias cc="code ."
@@ -39,7 +39,8 @@ alias berdoc="bundle exec rspec --format=documentation"
 alias berf="bundle exec rspec --format=documentation --only-failures"
 alias beer=ber
 alias becop="bundle exec rubocop"
-alias bb="ber && becop && grep -r --exclude-dir={node_modules,tmp,coverage} binding.pry ./"
+alias bb="ber && becop && grep -r -n --exclude-dir={node_modules,tmp,coverage} binding.pry ./"
+alias readme="cat README.md"
 
 alias crap="create-react-app"
 alias cujq="curl https://code.jquery.com/jquery-3.3.1.js > js/jquery.js"
