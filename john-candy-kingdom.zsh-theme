@@ -23,10 +23,10 @@ PROMPT='
 %{$fg_bold[green]%}%~%{$reset_color%}$(hg_prompt_info)$(git_prompt_info)
 %(?,,%{${fg_bold[white]}%}[%?]%{$reset_color%} )$ '
 
-ZSH_THEME_GIT_PROMPT_PREFIX=" %{$fg[magenta]%}("
-ZSH_THEME_GIT_PROMPT_CLEAN=")%{$reset_color%} %{$fg[green]%}CLEAN"
-ZSH_THEME_GIT_PROMPT_UNTRACKED=")%{$reset_color%} %{$fg[red]%}UNTRACKED FILES"
-ZSH_THEME_GIT_PROMPT_DIRTY=")%{$reset_color%} %{$fg[red]%}DIRTY"
+ZSH_THEME_GIT_PROMPT_PREFIX=" %{$fg[magenta]%}:"
+ZSH_THEME_GIT_PROMPT_CLEAN=":%{$reset_color%} %{$fg[green]%}CLEAN 🙂"
+ZSH_THEME_GIT_PROMPT_UNTRACKED=":%{$reset_color%} %{$fg[red]%}UNTRACKED FILES"
+ZSH_THEME_GIT_PROMPT_DIRTY=":%{$reset_color%} %{$fg[red]%}DIRTY 💀"
 ZSH_THEME_GIT_PROMPT_SUFFIX="%{$reset_color%}"
 
 RPROMPT='%{$fg[red]%}%(?..✘)%{$reset_color%}'
