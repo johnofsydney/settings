@@ -14,27 +14,20 @@ function box_name {
     [ -f ~/.box-name ] && cat ~/.box-name || echo ${SHORT_HOST:-$HOST}
 }
 
-# OLD from candy-kingdom
-# PROMPT='
-# %{$fg[magenta]%}%n%{$reset_color%}@%{$fg[yellow]%}$(box_name)%{$reset_color%}:%{$fg_bold[green]%}%~%{$reset_color%}$(hg_prompt_info)$(git_prompt_info)
-# %(?,,%{${fg_bold[white]}%}[%?]%{$reset_color%} )$ '
+# Grab the current date (%D) and time (%T) wrapped in {}: {%D %T}
+DALLAS_CURRENT_TIME_="%{$fg[white]%}{%{$fg[yellow]%}%D %T%{$fg[white]%}}%{$reset_color%}"
 
 PROMPT='
 %{$fg_bold[green]%}%~%{$reset_color%}$(hg_prompt_info)$(git_prompt_info)
 %(?,,%{${fg_bold[white]}%}[%?]%{$reset_color%} )$ '
 
 ZSH_THEME_GIT_PROMPT_PREFIX=" %{$fg[magenta]%}:"
-ZSH_THEME_GIT_PROMPT_CLEAN=":%{$reset_color%} %{$fg[green]%}CLEAN 🙂"
+ZSH_THEME_GIT_PROMPT_CLEAN=":%{$reset_color%} %{$fg[green]%}CLEAN 🙂 🌈 🦄"
 ZSH_THEME_GIT_PROMPT_UNTRACKED=":%{$reset_color%} %{$fg[red]%}UNTRACKED FILES"
-ZSH_THEME_GIT_PROMPT_DIRTY=":%{$reset_color%} %{$fg[red]%}DIRTY 💀"
+ZSH_THEME_GIT_PROMPT_DIRTY=":%{$reset_color%} %{$fg[red]%}DIRTY 💀 💩 😭"
 ZSH_THEME_GIT_PROMPT_SUFFIX="%{$reset_color%}"
 
-RPROMPT='%{$fg[red]%}%(?..✘)%{$reset_color%}'
+RPROMPT="$DALLAS_CURRENT_TIME_%{$fg[red]%}%(?..✘)%{$reset_color%}"
 
-# Add battery status if the battery plugin is enabled
-if (( $+functions[battery_pct_prompt] )); then
-    RPROMPT+='$(battery_time_remaining) $(battery_pct_prompt)%{$reset_color%}'
-fi
 
 # $ ln -s /path/to/original /path/to/link
-# $ ln -s ~/Projects/John/settings/john-candy-kingdom.zsh-theme ~/.oh-my-zsh/themes/john-candy-kingdom.zsh-theme
