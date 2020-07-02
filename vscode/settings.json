@@ -24,7 +24,7 @@
   "workbench.colorCustomizations": {
     "editorRuler.foreground": "#ff333388"
   },
-  "window.zoomLevel": 1,
+  "window.zoomLevel": -1,
   "workbench.startupEditor": "newUntitledFile",
   "breadcrumbs.enabled": true,
   "emmet.includeLanguages": {
@@ -64,7 +64,7 @@
     "rgba(255,127,255,0.2)",
     "rgba(79,236,236,0.2)"
   ],
-  "workbench.colorTheme": "Visual Studio Dark",
+  "workbench.colorTheme": "Atom One Light",
   "terminal.integrated.shell.osx": "/bin/zsh",
   "peacock.favoriteColors": [
     {
