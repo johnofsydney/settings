@@ -123,5 +123,8 @@
   "explorer.confirmDragAndDrop": false,
   "ruby.format": "rubocop",
   "workbench.colorTheme": "Atom One Light",
-  "todo-tree.tree.showScanModeButton": false
+  "todo-tree.tree.showScanModeButton": false,
+  "rubyTestExplorer.testFramework": "rspec",
+  "files.trimTrailingWhitespace": true,
+  "workbench.iconTheme": "vscode-icons"
 }
