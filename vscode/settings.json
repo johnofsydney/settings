@@ -24,7 +24,6 @@
   "workbench.colorCustomizations": {
     "editorRuler.foreground": "#ff333388"
   },
-  "window.zoomLevel": -1,
   "workbench.startupEditor": "newUntitledFile",
   "breadcrumbs.enabled": true,
   "emmet.includeLanguages": {
@@ -126,5 +125,19 @@
   "todo-tree.tree.showScanModeButton": false,
   "rubyTestExplorer.testFramework": "rspec",
   "files.trimTrailingWhitespace": true,
-  "workbench.iconTheme": "vscode-icons"
+  "workbench.iconTheme": "vscode-icons",
+  "todo-tree.general.tags": [
+    "BUG",
+    "HACK",
+    "FIXME",
+    "TODO",
+    "XXX",
+    "[ ]",
+    "[x]"
+  ],
+  "todo-tree.regex.regex": "(//|#|<!--|;|/\\*|^|^\\s*(-|\\d+.))\\s*($TAGS)",
+  "yaml.schemas": {
+    "file:///Users/john.coote/.vscode/extensions/atlassian.atlascode-2.8.6/resources/schemas/pipelines-schema.json": "bitbucket-pipelines.yml"
+  },
+  "window.zoomLevel": -1
 }
