@@ -24,7 +24,6 @@
   "workbench.colorCustomizations": {
     "editorRuler.foreground": "#ff333388"
   },
-  "window.zoomLevel": -1,
   "workbench.startupEditor": "newUntitledFile",
   "breadcrumbs.enabled": true,
   "emmet.includeLanguages": {
