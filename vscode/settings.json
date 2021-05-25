@@ -139,5 +139,6 @@
   "yaml.schemas": {
     "file:///Users/john.coote/.vscode/extensions/atlassian.atlascode-2.8.6/resources/schemas/pipelines-schema.json": "bitbucket-pipelines.yml"
   },
-  "window.zoomLevel": -1
+  "window.zoomLevel": -1,
+  "redhat.telemetry.enabled": true
 }

@@ -41,7 +41,7 @@ alias berdoc="bundle exec rspec --format=documentation"
 alias berf="bundle exec rspec --format=documentation --only-failures"
 alias beer=ber
 alias becop="bundle exec rubocop"
-alias bb="becop -a && ber && grep -r -n --exclude-dir={node_modules,tmp,coverage} binding.pry ./"
+alias bb="becop && ber && grep -r -n --exclude-dir={node_modules,tmp,coverage} binding.pry ./"
 alias readme="cat README.md"
 alias weather="curl wttr.in"
 alias please="sudo"
