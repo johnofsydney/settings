@@ -12,26 +12,27 @@ HISTSIZE=10000000
 # https://geoff.greer.fm/lscolors/
 
 export LS_COLORS="di=1;36:ln=1;35"
-
 alias ls="ls -G"
 alias lg="ls -laFG"
 
-alias reloadz="source ~/.zshrc"
-
+##################################################
+######            folder aliases            ######
 alias settings="cd ~/Projects/John/settings/"
+alias exercisms="cd ~/Projects/John/exercisms/"
+##################################################
 
-alias aa="atom ."
-alias cc="code ."
-alias xx="exit"
+###################################################
+######              git aliases              ######
 alias ga="git add ."
 alias gst="git status"
 alias glog="git log --oneline --graph --decorate"
 alias glo="git log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit"
 alias gc-="git checkout -"
-alias ..="cd .."
-alias ...="cd ../.."
-alias ....="cd ../../.."
-alias cat="bat"
+alias dev="git checkout develop && git fetch && git pull"
+###################################################
+
+###################################################
+######              spec aliases             ######
 alias nn="npm run test_dev && eslint spec *.js"
 alias be="bundle exec"
 alias ber="bundle exec rspec"
@@ -41,11 +42,22 @@ alias berdoc="bundle exec rspec --format=documentation"
 alias berf="bundle exec rspec --format=documentation --only-failures"
 alias beer=ber
 alias becop="bundle exec rubocop"
-alias bb="becop -a && ber && grep -r -n --exclude-dir={node_modules,tmp,coverage} binding.pry ./"
+alias bb="becop && ber && grep -r -n --exclude-dir={node_modules,tmp,coverage} binding.pry ./"
+###################################################
+
+alias aa="atom ."
+alias cc="code ."
+
+alias ..="cd .."
+alias ...="cd ../.."
+alias ....="cd ../../.."
+alias reloadz="source ~/.zshrc"
+alias xx="exit"
+
+alias cat="bat"
 alias readme="cat README.md"
 alias weather="curl wttr.in"
 alias please="sudo"
-alias dev="git checkout develop && git fetch && git pull"
 
 alias crap="create-react-app"
 alias cujq="curl https://code.jquery.com/jquery-3.3.1.js > js/jquery.js"
