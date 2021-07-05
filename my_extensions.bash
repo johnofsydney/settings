@@ -95,3 +95,18 @@ function addnewline () {
   MARKER_AND_SPACE='$ '
   PROMPT=${PROMPT}${NEWLINE}${MARKER_AND_SPACE}
 }
+
+function runNested() {
+  color=cyan
+
+  for d in ./*/
+    do /bin/zsh -c "
+    (
+      cd "$d" &&
+      print -P "%F{$color}$d%f" &&
+      "$@"
+      echo '\n'
+      )
+    "
+  done
+}
