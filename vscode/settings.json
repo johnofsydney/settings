@@ -120,7 +120,6 @@
   ],
   "peacock.surpriseMeOnStartup": true,
   "explorer.confirmDragAndDrop": false,
-  "ruby.format": "rubocop",
   "workbench.colorTheme": "Atom One Light",
   "todo-tree.tree.showScanModeButton": false,
   "rubyTestExplorer.testFramework": "rspec",
@@ -139,5 +138,11 @@
   "yaml.schemas": {
     "file:///Users/john.coote/.vscode/extensions/atlassian.atlascode-2.8.6/resources/schemas/pipelines-schema.json": "bitbucket-pipelines.yml"
   },
-  "redhat.telemetry.enabled": true
+  "redhat.telemetry.enabled": true,
+  "ruby.useBundler": true, //run non-lint commands with bundle exec
+  "ruby.useLanguageServer": true,
+  // "ruby.format": false,
+  "ruby.format": "rubocop",
+  "workbench.preferredLightColorTheme": "Atom One Light",
+  "window.zoomLevel": -1,
 }
