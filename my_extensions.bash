@@ -29,7 +29,7 @@ alias glog="git log --oneline --graph --decorate"
 alias glo="git log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit"
 alias gc-="git checkout -"
 alias dev="git checkout develop && git fetch && git pull"
-
+alias recent="git recent -n10"
 alias gp="git push"
 alias gd="git diff"
 
@@ -113,4 +113,9 @@ function runNested() {
       )
     "
   done
+}
+
+
+function dcop () {
+  git diff --name-status develop | grep -v "^D\|^R099" | grep ".rb" | awk '{print $2}' | xargs bundle exec rubocop
 }
