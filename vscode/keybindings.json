@@ -30,4 +30,17 @@
         "key": "ctrl+cmd+right",
         "command": "workbench.action.navigateRight"
     },
+    {
+      "key": "ctrl+cmd+up",
+      "command": "-editor.action.moveLinesUpAction",
+      "when": "editorTextFocus"
+    },
+    {
+      "key": "ctrl+cmd+up",
+      "command": "workbench.action.navigateUp"
+    },
+    {
+      "key": "ctrl+cmd+down",
+      "command": "workbench.action.navigateDown"
+    },
 ]
