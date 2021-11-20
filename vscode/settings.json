@@ -139,5 +139,13 @@
   "yaml.schemas": {
     "file:///Users/john.coote/.vscode/extensions/atlassian.atlascode-2.8.6/resources/schemas/pipelines-schema.json": "bitbucket-pipelines.yml"
   },
-  "redhat.telemetry.enabled": true
+  "redhat.telemetry.enabled": true,
+  "mssql.connections": [
+    {
+      "server": "{{put-server-name-here}}",
+      "database": "{{put-database-name-here}}",
+      "user": "{{put-username-here}}",
+      "password": "{{put-password-here}}"
+    }
+  ]
 }

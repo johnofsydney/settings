@@ -110,3 +110,6 @@ function runNested() {
     "
   done
 }
+
+
+EDITOR="atom --wait"
