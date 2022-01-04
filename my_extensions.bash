@@ -39,6 +39,7 @@ alias gd="git diff"
 ######              spec aliases             ######
 alias nn="npm run test_dev && eslint spec *.js"
 alias be="bundle exec"
+alias bep="bundle exec rake parallel:spec"
 alias ber="bundle exec rspec"
 alias berc="bundle exec rails console"
 alias bers="bundle exec rails server"
