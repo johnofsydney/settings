@@ -27,7 +27,8 @@
   "workbench.startupEditor": "newUntitledFile",
   "breadcrumbs.enabled": true,
   "emmet.includeLanguages": {
-    "erb": "html"
+    "erb": "html",
+    "ruby": "html"
   },
   "emmet.showExpandedAbbreviation": "always",
   "highlight-matching-tag.enabled": true,
@@ -153,4 +154,6 @@
   "ruby.format": "rubocop",
   "workbench.preferredLightColorTheme": "Atom One Light",
   "window.zoomLevel": -1,
+  "emmet.triggerExpansionOnTab": true,
+  "security.workspace.trust.untrustedFiles": "open",
 }

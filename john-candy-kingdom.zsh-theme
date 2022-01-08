@@ -31,3 +31,4 @@ RPROMPT="$DALLAS_CURRENT_TIME_%{$fg[red]%}%(?..✘)%{$reset_color%}"
 
 
 # $ ln -s /path/to/original /path/to/link
+# $ ln -s /Users/john/Projects/John/settings/john-candy-kingdom.zsh-theme /Users/john/.oh-my-zsh/themes/john-candy-kingdom.zsh-theme
