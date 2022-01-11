@@ -20,7 +20,17 @@
   "editor.suggestOnTriggerCharacters": true,
   // Controls if pressing tab inserts the best suggestion and if tab cycles through other suggestions
   "editor.tabCompletion": "on",
-  "editor.rulers": [80, 120],
+  // "editor.rulers": [80, 120],
+  "editor.rulers": [
+    {
+      "column": 120,
+      "color": "#ff0099",
+    },
+    {
+      "column": 200,
+      "color": "#ff0099",
+    },
+  ],
   "workbench.colorCustomizations": {
     "editorRuler.foreground": "#ff333388"
   },
@@ -35,7 +45,9 @@
   "ruby.intellisense": "rubyLocate",
   "ruby.codeCompletion": "rcodetools",
   "scss.lint.argumentsInColorFunction": "warning",
-  "bracket-pair-colorizer-2.colors": ["Magenta", "DeepSkyBlue", "DarkOrange", "DarkOrchid", "Sienna"],
+  // "bracket-pair-colorizer-2.colors": ["Magenta", "DeepSkyBlue", "DarkOrange", "DarkOrchid", "Sienna"],
+  "editor.bracketPairColorization.enabled": true,
+  "editor.guides.bracketPairs": "active",
   "editor.tokenColorCustomizations": {
     "textMateRules": [
       {
@@ -153,7 +165,6 @@
   // "ruby.format": false,
   "ruby.format": "rubocop",
   "workbench.preferredLightColorTheme": "Atom One Light",
-  "window.zoomLevel": -1,
+  "window.zoomLevel": -2,
   "emmet.triggerExpansionOnTab": true,
-  "security.workspace.trust.untrustedFiles": "open",
 }
