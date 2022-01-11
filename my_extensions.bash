@@ -122,7 +122,7 @@ function runNested() {
   done
 }
 
-export EDITOR="atom --wait"
+export EDITOR="code --wait"
 
 function dcop () {
   git diff --name-status develop | grep -v "^D\|^R099" | grep ".rb" | awk '{print $2}' | xargs bundle exec rubocop

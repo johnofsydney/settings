@@ -165,6 +165,6 @@
   // "ruby.format": false,
   "ruby.format": "rubocop",
   "workbench.preferredLightColorTheme": "Atom One Light",
-  "window.zoomLevel": -2,
   "emmet.triggerExpansionOnTab": true,
+  "bracket-pair-colorizer-2.depreciation-notice": false,
 }
