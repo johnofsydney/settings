@@ -164,5 +164,5 @@
   // "ruby.format": false,
   "ruby.format": "rubocop",
   "workbench.preferredLightColorTheme": "Atom One Light",
-  "window.zoomLevel": -1,
+  "window.zoomLevel": -2,
 }
