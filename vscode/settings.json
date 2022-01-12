@@ -32,7 +32,18 @@
     },
   ],
   "workbench.colorCustomizations": {
-    "editorRuler.foreground": "#ff333388"
+    "editorRuler.foreground": "#ff333388",
+    "editorBracketHighlight.foreground1": "Magenta",
+    "editorBracketHighlight.foreground2": "DeepSkyBlue",
+    "editorBracketHighlight.foreground3": "DarkOrange",
+    "editorBracketHighlight.foreground4": "DarkOrchid",
+    "editorBracketHighlight.foreground5": "Sienna",
+    "editorBracketPairGuide.activeBackground1" : "Red",
+    "editorBracketPairGuide.activeBackground2" : "Blue",
+    "editorBracketPairGuide.activeBackground3" : "Green",
+    "editorBracketPairGuide.background1" : "Red",
+    "editorBracketPairGuide.background2" : "Blue",
+    "editorBracketPairGuide.background3" : "Green",
   },
   "workbench.startupEditor": "newUntitledFile",
   "breadcrumbs.enabled": true,
@@ -48,6 +59,9 @@
   // "bracket-pair-colorizer-2.colors": ["Magenta", "DeepSkyBlue", "DarkOrange", "DarkOrchid", "Sienna"],
   "editor.bracketPairColorization.enabled": true,
   "editor.guides.bracketPairs": "active",
+  "editor.guides.bracketPairsHorizontal": true,
+  "editor.guides.highlightActiveBracketPair": true,
+
   "editor.tokenColorCustomizations": {
     "textMateRules": [
       {
@@ -167,4 +181,5 @@
   "workbench.preferredLightColorTheme": "Atom One Light",
   "emmet.triggerExpansionOnTab": true,
   "bracket-pair-colorizer-2.depreciation-notice": false,
+  "window.zoomLevel": -2,
 }
