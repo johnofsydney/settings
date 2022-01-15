@@ -11,7 +11,12 @@ HISTSIZE=10000000
 # export LSCOLORS=gxfxcxdxbxegedabagacad
 # https://geoff.greer.fm/lscolors/
 
+##################################################
+######         environment variables        ######
 export LS_COLORS="di=1;36:ln=1;35"
+export EDITOR="atom --wait"
+##################################################
+
 alias ls="ls -G"
 alias lg="ls -laFG"
 
@@ -67,6 +72,7 @@ alias xx="exit"
 
 alias cat="bat"
 alias readme="cat README.md"
+alias schema="cat db/schema.rb"
 alias weather="curl wttr.in"
 alias please="sudo"
 
@@ -121,8 +127,6 @@ function runNested() {
     "
   done
 }
-
-export EDITOR="code --wait"
 
 function dcop () {
   git diff --name-status develop | grep -v "^D\|^R099" | grep ".rb" | awk '{print $2}' | xargs bundle exec rubocop

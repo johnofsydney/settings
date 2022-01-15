@@ -1,4 +1,5 @@
   {
+  "workbench.preferredLightColorTheme": "Atom One Light",
   "atomKeymap.promptV3Features": true,
   "files.autoSave": "afterDelay",
   "files.autoSaveDelay": 5000,
@@ -31,20 +32,7 @@
       "color": "#ff0099",
     },
   ],
-  "workbench.colorCustomizations": {
-    "editorRuler.foreground": "#ff333388",
-    "editorBracketHighlight.foreground1": "Magenta",
-    "editorBracketHighlight.foreground2": "DeepSkyBlue",
-    "editorBracketHighlight.foreground3": "DarkOrange",
-    "editorBracketHighlight.foreground4": "DarkOrchid",
-    "editorBracketHighlight.foreground5": "Sienna",
-    "editorBracketPairGuide.activeBackground1" : "Red",
-    "editorBracketPairGuide.activeBackground2" : "Blue",
-    "editorBracketPairGuide.activeBackground3" : "Green",
-    "editorBracketPairGuide.background1" : "Red",
-    "editorBracketPairGuide.background2" : "Blue",
-    "editorBracketPairGuide.background3" : "Green",
-  },
+
   "workbench.startupEditor": "newUntitledFile",
   "breadcrumbs.enabled": true,
   "emmet.includeLanguages": {
@@ -61,7 +49,9 @@
   "editor.guides.bracketPairs": "active",
   "editor.guides.bracketPairsHorizontal": true,
   "editor.guides.highlightActiveBracketPair": true,
-
+  "workbench.colorCustomizations": {
+    "editorRuler.foreground": "#ff333388"
+  },
   "editor.tokenColorCustomizations": {
     "textMateRules": [
       {
@@ -178,7 +168,7 @@
   "ruby.useLanguageServer": true,
   // "ruby.format": false,
   "ruby.format": "rubocop",
-  "workbench.preferredLightColorTheme": "Atom One Light",
+
   "emmet.triggerExpansionOnTab": true,
   "bracket-pair-colorizer-2.depreciation-notice": false,
   "window.zoomLevel": -2,
