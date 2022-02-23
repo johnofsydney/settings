@@ -144,7 +144,6 @@
   ],
   "peacock.surpriseMeOnStartup": true,
   "explorer.confirmDragAndDrop": false,
-  "workbench.colorTheme": "Atom One Light",
   "todo-tree.tree.showScanModeButton": false,
   "rubyTestExplorer.testFramework": "rspec",
   "files.trimTrailingWhitespace": true,
@@ -177,5 +176,6 @@
   "ruby.format": "rubocop",
 
   "emmet.triggerExpansionOnTab": true,
-  "window.zoomLevel": -1,
+  "workbench.colorTheme": "Monokai",
+  "window.zoomLevel": -2,
 }
