@@ -15,7 +15,7 @@ function box_name {
 }
 
 # Grab the current date (%D) and time (%T) wrapped in {}: {%D %T}
-DALLAS_CURRENT_TIME_="%{$fg[white]%}{%{$fg[yellow]%}%D %T%{$fg[white]%}}%{$reset_color%}"
+# DALLAS_CURRENT_TIME_="%{$fg[white]%}{%{$fg[yellow]%}%D %T%{$fg[white]%}}%{$reset_color%}"
 
 PROMPT='
 %{$fg_bold[green]%}%~%{$reset_color%}$(hg_prompt_info)$(git_prompt_info)
@@ -27,7 +27,7 @@ ZSH_THEME_GIT_PROMPT_UNTRACKED="::%{$reset_color%} %{$fg[red]%}UNTRACKED FILES"
 ZSH_THEME_GIT_PROMPT_DIRTY="::%{$reset_color%} %{$fg[red]%}DIRTY 💀 💩 😭"
 ZSH_THEME_GIT_PROMPT_SUFFIX="%{$reset_color%}"
 
-RPROMPT="$DALLAS_CURRENT_TIME_%{$fg[red]%}%(?..✘)%{$reset_color%}"
+# RPROMPT="$DALLAS_CURRENT_TIME_%{$fg[red]%}%(?..✘)%{$reset_color%}"
 
 
 # $ ln -s /path/to/original /path/to/link
