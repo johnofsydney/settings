@@ -53,7 +53,7 @@ alias berf="bundle exec rspec --format=documentation --only-failures"
 alias beer=ber
 alias becop="bundle exec rubocop"
 alias bb="becop && ber && grep -r -n --exclude-dir={node_modules,tmp,coverage} binding.pry ./"
-alias rspec='nocorrect rspec'
+alias rspec="nocorrect rspec"
 
 # this fixes the annoying behaviour around correcting the "rspec" in "$ bundle exec rspec"
 # https://superuser.com/questions/439209/how-to-partially-disable-the-zshs-autocorrect
