@@ -88,7 +88,7 @@ function gac () {
 }
 
 function hh () {
-  history | grep "$@"
+  history | grep -E "$@"
 }
 
 function mkcd () { mkdir -p "$@" && cd "$@"; }
