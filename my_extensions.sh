@@ -14,11 +14,12 @@ HISTSIZE=10000000
 ##################################################
 ######         environment variables        ######
 export LS_COLORS="di=1;36:ln=1;35"
-export EDITOR="atom --wait"
+export EDITOR="code --wait"
 ##################################################
 
 alias ls="ls -G"
 alias lg="ls -laFG"
+alias l="lg"
 
 ##################################################
 ######            folder aliases            ######
@@ -37,6 +38,7 @@ alias dev="git checkout develop && git fetch && git pull"
 alias recent="git recent -n10"
 alias gp="git push"
 alias gd="git diff"
+alias gl="git pull"
 
 ###################################################
 
