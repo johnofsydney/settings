@@ -99,7 +99,12 @@ function gac () {
 }
 
 function hh () {
-  history | grep -E "$@"
+  if [[ "$SHELL" == *"zsh"* ]]; then
+    history 1 | grep -E "$@"
+  else
+    # assume it is bash.
+    history | grep -E "$@"
+  fi
 }
 
 function mkcd () { mkdir -p "$@" && cd "$@"; }
