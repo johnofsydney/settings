@@ -1,4 +1,7 @@
 work_aliases.bash
 work_functions.bash
 home_aliases.bash
+work_aliases.sh
+work_functions.sh
+home_aliases.sh
 env_variables.sh

@@ -14,15 +14,17 @@ HISTSIZE=10000000
 ##################################################
 ######         environment variables        ######
 export LS_COLORS="di=1;36:ln=1;35"
-export EDITOR="atom --wait"
+export EDITOR="code --wait"
 ##################################################
 
 alias ls="ls -G"
 alias lg="ls -laFG"
+alias l="lg"
 
 ##################################################
 ######            folder aliases            ######
 alias settings="cd ~/Projects/John/settings/"
+alias notes="cd ~/Projects/John/notes/"
 alias exercisms="cd ~/Projects/John/exercisms/"
 ##################################################
 
@@ -37,6 +39,7 @@ alias dev="git checkout develop && git fetch && git pull"
 alias recent="git recent -n10"
 alias gp="git push"
 alias gd="git diff"
+alias gl="git pull"
 
 ###################################################
 
@@ -57,8 +60,16 @@ alias rspec="nocorrect rspec"
 
 # this fixes the annoying behaviour around correcting the "rspec" in "$ bundle exec rspec"
 # https://superuser.com/questions/439209/how-to-partially-disable-the-zshs-autocorrect
-unsetopt correct_all
-setopt correct
+# it doesn't work on linux
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+  echo "Setting specific options for Linux"
+else
+  # not Linux (it me, so probably Mac).
+  echo "Setting specific options for Mac"
+  unsetopt correct_all
+  setopt correct
+fi
+
 ###################################################
 
 alias aa="atom ."
@@ -88,7 +99,12 @@ function gac () {
 }
 
 function hh () {
-  history | grep -E "$@"
+  if [[ "$SHELL" == *"zsh"* ]]; then
+    history 1 | grep -E "$@"
+  else
+    # assume it is bash.
+    history | grep -E "$@"
+  fi
 }
 
 function mkcd () { mkdir -p "$@" && cd "$@"; }
