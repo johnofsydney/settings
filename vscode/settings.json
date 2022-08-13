@@ -147,7 +147,6 @@
   "todo-tree.tree.showScanModeButton": false,
   "rubyTestExplorer.testFramework": "rspec",
   "files.trimTrailingWhitespace": true,
-  "workbench.iconTheme": "vscode-icons",
   "todo-tree.general.tags": [
     "BUG",
     "HACK",
@@ -176,7 +175,7 @@
   "ruby.format": "rubocop",
 
   "emmet.triggerExpansionOnTab": true,
-  "workbench.colorTheme": "Monokai",
-  "window.zoomLevel": -2,
+  "workbench.colorTheme": "Atom One Light",
   "git.mergeEditor": false,
+  "workbench.iconTheme": "vscode-icons",
 }
