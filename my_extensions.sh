@@ -3,8 +3,8 @@
 PROMPT_COMMAND='history -a'
 # appends shell history to histoery on exit, rather than overwrite. maybe future improvements?
 
-HISTFILESIZE=10000000
-HISTSIZE=10000000
+# HISTFILESIZE=10000000
+# HISTSIZE=10000000
 # https://www.katescomment.com/how-to-increase-mac-osx-bash-shell-history-length/
 ###################################
 
@@ -15,6 +15,8 @@ HISTSIZE=10000000
 ######         environment variables        ######
 export LS_COLORS="di=1;36:ln=1;35"
 export EDITOR="code --wait"
+
+export GIT_MERGE_AUTOEDIT=no
 ##################################################
 
 alias ls="ls -G"
@@ -36,7 +38,10 @@ alias glog="git log --oneline --graph --decorate"
 alias glo="git log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit"
 alias gc-="git checkout -"
 alias dev="git checkout develop && git fetch && git pull"
-alias recent="git recent -n10"
+alias master="git checkout master && git fetch && git pull"
+
+# alias recent="git recent -n10"
+alias recent="git branch --sort=-committerdate -v"
 alias gp="git push"
 alias gd="git diff"
 alias gl="git pull"
@@ -147,3 +152,59 @@ function runNested() {
 function dcop () {
   git diff --name-status develop | grep -v "^D\|^R099" | grep ".rb" | awk '{print $2}' | xargs bundle exec rubocop
 }
+
+# =================================
+# this is an oh-my-zsh plugin rather than a zsh default
+
+# Changing/making/removing directory
+setopt auto_pushd
+setopt pushd_ignore_dups
+setopt pushdminus
+
+alias -g ...='../..'
+alias -g ....='../../..'
+alias -g .....='../../../..'
+alias -g ......='../../../../..'
+
+alias -- -='cd -'
+alias 1='cd -1'
+alias 2='cd -2'
+alias 3='cd -3'
+alias 4='cd -4'
+alias 5='cd -5'
+alias 6='cd -6'
+alias 7='cd -7'
+alias 8='cd -8'
+alias 9='cd -9'
+
+# alias md='mkdir -p'
+# alias rd=rmdir
+
+function d () {
+  if [[ -n $1 ]]; then
+    dirs "$@"
+  else
+    dirs -v | head -n 10
+  fi
+}
+
+## add by me from https://apple.stackexchange.com/questions/296477/my-command-line-says-complete13-command-not-found-compdef
+autoload -Uz compinit
+compinit
+##
+
+compdef _dirs d
+
+# # List directory contents
+# alias lsa='ls -lah'
+# alias l='ls -lah'
+# alias ll='ls -lh'
+# alias la='ls -lAh'
+# =================================
+
+
+
+export HISTFILE="$HOME/.zsh_history"
+export HISTSIZE=1000000000
+export SAVEHIST=1000000000
+setopt EXTENDED_HISTORY

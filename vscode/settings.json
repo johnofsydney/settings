@@ -144,7 +144,7 @@
   ],
   "peacock.surpriseMeOnStartup": true,
   "explorer.confirmDragAndDrop": false,
-  "workbench.colorTheme": "Atom One Light",
+  "workbench.colorTheme": "Atom One Dark",
   "todo-tree.tree.showScanModeButton": false,
   "rubyTestExplorer.testFramework": "rspec",
   "files.trimTrailingWhitespace": true,
@@ -171,11 +171,15 @@
       "password": "{{put-password-here}}"
     }
   ],
-  "ruby.useBundler": true, //run non-lint commands with bundle exec
-  "ruby.useLanguageServer": true,
+  "ruby.useBundler": true,
   // "ruby.format": false,
   "ruby.format": "rubocop",
 
   "emmet.triggerExpansionOnTab": true,
-  "window.zoomLevel": -2,
+  "editor.accessibilitySupport": "off",
+  "gitlens.plusFeatures.enabled": false,
+  "terminal.integrated.env.osx": {
+    "FIG_NEW_SESSION": "1"
+  },
+  "window.zoomLevel": -1,
 }
