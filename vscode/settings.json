@@ -177,6 +177,6 @@
 
   "emmet.triggerExpansionOnTab": true,
   "workbench.colorTheme": "Monokai",
-  "window.zoomLevel": -2,
+  "window.zoomLevel": -1,
   "git.mergeEditor": false,
 }
