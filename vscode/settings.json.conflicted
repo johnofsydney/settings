@@ -144,10 +144,7 @@
   ],
   "peacock.surpriseMeOnStartup": true,
   "explorer.confirmDragAndDrop": false,
-<<<<<<< HEAD
   "workbench.colorTheme": "Atom One Dark",
-=======
->>>>>>> 2602082f68131426419c129c63851be8358d7e5f
   "todo-tree.tree.showScanModeButton": false,
   "rubyTestExplorer.testFramework": "rspec",
   "files.trimTrailingWhitespace": true,
@@ -179,15 +176,10 @@
   "ruby.format": "rubocop",
 
   "emmet.triggerExpansionOnTab": true,
-<<<<<<< HEAD
   "editor.accessibilitySupport": "off",
   "gitlens.plusFeatures.enabled": false,
   "terminal.integrated.env.osx": {
     "FIG_NEW_SESSION": "1"
   },
   "window.zoomLevel": -1,
-=======
-  "workbench.colorTheme": "Monokai",
-  "window.zoomLevel": -2,
->>>>>>> 2602082f68131426419c129c63851be8358d7e5f
 }
