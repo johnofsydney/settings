@@ -152,7 +152,7 @@ function runNested() {
 }
 
 function dcop () {
-  git diff --name-status develop | grep -v "^D\|^R099" | grep ".rb" | awk '{print $2}' | xargs bundle exec rubocop
+  git diff --name-status master | grep -v "^D\|^R099" | grep ".rb" | awk '{print $2}' | xargs bundle exec rubocop
 }
 
 
