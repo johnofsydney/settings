@@ -2,7 +2,7 @@
 [
     {
         "key": "cmd+shift+.",
-        "command": "erb.toggleTags",
+        "command": "erb-toggle.toggleTags",
         "when": "editorTextFocus && editorLangId == erb"
     },
     {

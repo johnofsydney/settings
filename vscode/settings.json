@@ -169,18 +169,23 @@
       "password": "{{put-password-here}}"
     }
   ],
-  "ruby.useBundler": true, //run non-lint commands with bundle exec
-  "ruby.useLanguageServer": true,
+  "ruby.useBundler": true,
   // "ruby.format": false,
   "ruby.format": "rubocop",
 
   "emmet.triggerExpansionOnTab": true,
-  "workbench.colorTheme": "Atom One Light",
   "git.mergeEditor": false,
   "workbench.iconTheme": "vscode-icons",
   "editor.accessibilitySupport": "off",
   "terminal.integrated.env.osx": {
     "FIG_NEW_SESSION": "1"
   },
-  "window.zoomLevel": -1,
+  "workbench.colorTheme": "Atom One Light",
+  "html.format.templating": true,
+  "editor.fontLigatures": true,
+  "editor.fontFamily": "Menlo, Courier New",
+  "ruby.languageServer": {
+
+  },
+  "ruby.useLanguageServer": false
 }
