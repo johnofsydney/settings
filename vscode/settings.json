@@ -182,7 +182,7 @@
   },
   "workbench.colorTheme": "Atom One Light",
   "html.format.templating": true,
-  "editor.fontLigatures": true,
+  "editor.fontLigatures": false,
   "editor.fontFamily": "Menlo, Courier New",
   "ruby.languageServer": {
 
