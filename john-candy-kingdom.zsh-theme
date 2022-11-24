@@ -18,7 +18,7 @@ function box_name {
 # DALLAS_CURRENT_TIME_="%{$fg[white]%}{%{$fg[yellow]%}%D %T%{$fg[white]%}}%{$reset_color%}"
 
 PROMPT='
-%{$fg_bold[green]%}%~%{$reset_color%}$(hg_prompt_info)$(git_prompt_info)
+%{$fg_bold[green]%}%~%{$reset_color%}$(hg_prompt_info)$(git_prompt_info) . %{$fg[magenta]%}%D %T
 %(?,,%{${fg_bold[white]}%}[%?]%{$reset_color%} )$ '
 
 ZSH_THEME_GIT_PROMPT_PREFIX=" %{$fg[magenta]%}::"

@@ -187,5 +187,6 @@
   "ruby.languageServer": {
 
   },
-  "ruby.useLanguageServer": false
+  "ruby.useLanguageServer": false,
+  "security.workspace.trust.untrustedFiles": "open"
 }

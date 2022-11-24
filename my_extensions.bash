@@ -34,8 +34,9 @@ alias exercisms="cd ~/Projects/John/exercisms/"
 ######              git aliases              ######
 alias ga="git add ."
 alias gst="git status"
-alias glog="git log --oneline --graph --decorate"
-alias glo="git log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit"
+# alias glog="git log --oneline --graph --decorate"
+# alias glo="git log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit"
+alias glog="git log --graph --all --pretty='format:%C(auto)%h %C(cyan)%ar %C(auto)%d %C(magenta)%an %C(auto)%s'"
 alias gc-="git checkout -"
 alias dev="git checkout develop && git fetch && git pull"
 alias master="git checkout master && git fetch && git pull"
@@ -53,6 +54,7 @@ alias gl="git pull"
 alias nn="npm run test_dev && eslint spec *.js"
 alias be="bundle exec"
 alias bep="bundle exec rake parallel:spec"
+alias bepc="COVERAGE=true bundle exec rake parallel:spec"
 alias ber="bundle exec rspec"
 alias berc="bundle exec rails console"
 alias bers="bundle exec rails server"
@@ -107,10 +109,10 @@ function gac () {
 
 function hh () {
   if [[ "$SHELL" == *"zsh"* ]]; then
-    history 1 | grep -E "$@"
+    history -E 1 | grep -E "$@"
   else
     # assume it is bash.
-    history | grep -E "$@"
+    history -E | grep -E "$@"
   fi
 }
 
@@ -156,6 +158,8 @@ function dcop () {
 }
 
 
+export HISTTIMEFORMAT="%d/%m/%y %T "
 export HISTFILE="$HOME/.zsh_history"
 export HISTSIZE=1000000000
 export SAVEHIST=1000000000
+
