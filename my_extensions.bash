@@ -90,7 +90,11 @@ alias ....="cd ../../.."
 alias reloadz="source ~/.zshrc"
 alias xx="exit"
 
-alias cat="bat"
+# alias cat="bat"
+alias cat="bat --theme=Coldark-Dark"
+# alias cat="bat --theme=gruvbox-dark"
+# alias cat="bat --theme=Nord"
+
 alias readme="cat README.md"
 alias schema="cat db/schema.rb"
 alias weather="curl wttr.in"
