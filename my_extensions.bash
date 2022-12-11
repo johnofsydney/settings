@@ -90,15 +90,10 @@ alias ....="cd ../../.."
 alias reloadz="source ~/.zshrc"
 alias xx="exit"
 
-alias cat="bat"
-alias readme="cat README.md"
-alias schema="cat db/schema.rb"
+alias readme="bat README.md"
+alias schema="bat db/schema.rb"
 alias weather="curl wttr.in"
 alias please="sudo"
-
-alias crap="create-react-app"
-alias cujq="curl https://code.jquery.com/jquery-3.3.1.js > js/jquery.js"
-alias cuus="curl https://raw.githubusercontent.com/jashkenas/underscore/master/underscore.js > js/underscore.js"
 
 alias killspring="ps ax | grep spring | cut -f1 -d' ' | xargs kill"
 
@@ -128,8 +123,9 @@ function npj () {
   touch "index.html"
   touch "README.md"
   touch "js/main.js"
-  touch "css/master.css"
-  aa
+  curl "https://code.jquery.com/jquery-3.3.1.js > js/jquery.js"
+  curl "https://raw.githubusercontent.com/jashkenas/underscore/master/underscore.js > js/underscore.js"
+  touch "css/main.css"
 }
 
 function addnewline () {
