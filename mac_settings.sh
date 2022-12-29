@@ -1,3 +1,10 @@
+
+  # this fixes the annoying behaviour around correcting the "rspec" in "$ bundle exec rspec"
+  # https://superuser.com/questions/439209/how-to-partially-disable-the-zshs-autocorrect
+  # it doesn't work on linux
+  unsetopt correct_all
+  setopt correct
+
 # =================================
 # this is an oh-my-zsh plugin rather than a zsh default
 # use `d` to list recent directories
@@ -24,4 +31,4 @@ compdef _dirs d
 
 # =================================
 
-setopt EXTENDED_HISTORY
+# setopt EXTENDED_HISTORY
