@@ -3,7 +3,7 @@ if ! hg prompt 2>/dev/null; then
 else
     function hg_prompt_info {
         hg prompt --angle-brackets "\
-< on %{$fg[magenta]%}<branch>%{$reset_color%}>\
+< on %{$fg_bold[magenta]%}<branch>%{$reset_color%}>\
 < at %{$fg[yellow]%}<tags|%{$reset_color%}, %{$fg[yellow]%}>%{$reset_color%}>\
 %{$fg[green]%}<status|modified|unknown><update>%{$reset_color%}<
 patches: <patches|join( → )|pre_applied(%{$fg[yellow]%})|post_applied(%{$reset_color%})|pre_unapplied(%{$fg_bold[black]%})|post_unapplied(%{$reset_color%})>>" 2>/dev/null
@@ -18,13 +18,13 @@ function box_name {
 # DALLAS_CURRENT_TIME_="%{$fg[white]%}{%{$fg[yellow]%}%D %T%{$fg[white]%}}%{$reset_color%}"
 
 PROMPT='
-%{$fg[magenta]%}%D %T%  | %{$reset_color%}%{$fg[green]%}%~%{$reset_color%} $(hg_prompt_info)$(git_prompt_info)
+%{$fg_bold[magenta]%}%D %T%  | %{$reset_color%}%{$fg_bold[green]%}%~%{$reset_color%} $(hg_prompt_info)$(git_prompt_info)
 %(?,,%{${fg_bold[white]}%}[%?]%{$reset_color%} )$ '
 
-ZSH_THEME_GIT_PROMPT_PREFIX=" %{$fg[magenta]%}| "
-ZSH_THEME_GIT_PROMPT_CLEAN=" |%{$reset_color%} %{$fg[green]%}CLEAN 🙂 🌈 🦄"
+ZSH_THEME_GIT_PROMPT_PREFIX=" %{$fg_bold[magenta]%}| "
+ZSH_THEME_GIT_PROMPT_CLEAN=" |%{$reset_color%} %{$fg_bold[green]%}CLEAN 🙂 🌈 🦄"
 ZSH_THEME_GIT_PROMPT_UNTRACKED="%{$reset_color%} %{$fg[red]%}UNTRACKED FILES"
-ZSH_THEME_GIT_PROMPT_DIRTY=" |%{$reset_color%} %{$fg[red]%}DIRTY 💀 💩 😭"
+ZSH_THEME_GIT_PROMPT_DIRTY=" |%{$reset_color%} %{$fg_bold[red]%}DIRTY 💀 💩 😭"
 ZSH_THEME_GIT_PROMPT_SUFFIX="%{$reset_color%}"
 
 # RPROMPT="$DALLAS_CURRENT_TIME_%{$fg[red]%}%(?..✘)%{$reset_color%}"
