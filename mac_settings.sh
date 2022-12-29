@@ -24,4 +24,4 @@ compdef _dirs d
 
 # =================================
 
-setopt EXTENDED_HISTORY
+# setopt EXTENDED_HISTORY

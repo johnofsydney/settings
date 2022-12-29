@@ -3,20 +3,18 @@
 PROMPT_COMMAND='history -a'
 # appends shell history to histoery on exit, rather than overwrite. maybe future improvements?
 
-# HISTFILESIZE=10000000
-# HISTSIZE=10000000
-# https://www.katescomment.com/how-to-increase-mac-osx-bash-shell-history-length/
-###################################
-
-# export LSCOLORS=gxfxcxdxbxegedabagacad
-# https://geoff.greer.fm/lscolors/
 
 ##################################################
-######         environment variables        ######
+######  non sensitive environment variables ######
 export LS_COLORS="di=1;36:ln=1;35"
 export EDITOR="code --wait"
 
 export GIT_MERGE_AUTOEDIT=no
+
+export HISTTIMEFORMAT="%d/%m/%y %T "
+export HISTFILE="$HOME/.zsh_history"
+export HISTSIZE=1000000000
+export SAVEHIST=1000000000
 ##################################################
 
 alias ls="ls -G"
@@ -65,21 +63,7 @@ alias becop="bundle exec rubocop"
 alias bb="becop && ber && grep -r -n --exclude-dir={node_modules,tmp,coverage} binding.pry ./"
 alias rspec="nocorrect rspec"
 
-# this fixes the annoying behaviour around correcting the "rspec" in "$ bundle exec rspec"
-# https://superuser.com/questions/439209/how-to-partially-disable-the-zshs-autocorrect
-# it doesn't work on linux
-if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-  echo "Setting specific options for Linux"
-else
-  # not Linux (it me, so probably Mac).
-  echo "Setting specific options for Mac"
-  unsetopt correct_all
-  setopt correct
 
-  source ~/Projects/John/settings/mac_settings.bash
-fi
-
-###################################################
 
 alias aa="atom ."
 alias cc="code ."
@@ -128,11 +112,11 @@ function npj () {
   touch "css/main.css"
 }
 
-function addnewline () {
-  NEWLINE=$'\n'
-  MARKER_AND_SPACE='$ '
-  PROMPT=${PROMPT}${NEWLINE}${MARKER_AND_SPACE}
-}
+# function addnewline () {
+#   NEWLINE=$'\n'
+#   MARKER_AND_SPACE='$ '
+#   PROMPT=${PROMPT}${NEWLINE}${MARKER_AND_SPACE}
+# }
 
 function runNested() {
   color=cyan
@@ -150,12 +134,9 @@ function runNested() {
 }
 
 function dcop () {
-  git diff --name-status master | grep -v "^D\|^R099" | grep ".rb" | awk '{print $2}' | xargs bundle exec rubocop
+  git diff --name-status master | grep -v "^D\|^R" | grep ".rb" | awk '{print $2}' | xargs bundle exec rubocop
 }
 
 
-export HISTTIMEFORMAT="%d/%m/%y %T "
-export HISTFILE="$HOME/.zsh_history"
-export HISTSIZE=1000000000
-export SAVEHIST=1000000000
+
 
