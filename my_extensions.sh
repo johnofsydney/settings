@@ -1,4 +1,4 @@
-
+echo 'loading my_extensions.sh'
 
 PROMPT_COMMAND='history -a'
 # appends shell history to histoery on exit, rather than overwrite. maybe future improvements?

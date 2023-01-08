@@ -51,4 +51,8 @@
       "key": "cmd+k z",
       "command": "-workbench.action.toggleZenMode"
     },
+    {
+      "key": "cmd+enter",
+      "command": "github.copilot.generate"
+    },
 ]

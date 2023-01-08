@@ -9116,12 +9116,16 @@
 			<true/>
 			<key>Background Color</key>
 			<dict>
+				<key>Alpha Component</key>
+				<real>1</real>
 				<key>Blue Component</key>
-				<real>0.21960784494876862</real>
+				<real>0.0</real>
+				<key>Color Space</key>
+				<string>sRGB</string>
 				<key>Green Component</key>
-				<real>0.15686275064945221</real>
+				<real>0.0</real>
 				<key>Red Component</key>
-				<real>0.078431375324726105</real>
+				<real>0.0</real>
 			</dict>
 			<key>Background Image Location</key>
 			<string></string>
@@ -9764,7 +9768,7 @@
 			<key>Title Components</key>
 			<integer>32</integer>
 			<key>Transparency</key>
-			<real>0.30416389627659579</real>
+			<real>0.0</real>
 			<key>Unicode Version</key>
 			<integer>9</integer>
 			<key>Unlimited Scrollback</key>

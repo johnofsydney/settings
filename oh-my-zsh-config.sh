@@ -1,3 +1,5 @@
+echo "Loading oh-my-zsh-config.sh"
+
 ###############################################
 ##### The stuff that comes with Oh My Zsh #####
 ###############################################
