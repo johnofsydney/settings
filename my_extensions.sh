@@ -38,6 +38,7 @@ alias glog="git log --graph --all --pretty='format:%C(auto)%h %C(cyan)%ar %C(aut
 alias gc-="git checkout -"
 alias dev="git checkout develop && git fetch && git pull"
 alias master="git checkout master && git fetch && git pull"
+alias main="git checkout main && git fetch && git pull"
 
 # alias recent="git recent -n10"
 alias recent="git branch --sort=-committerdate -v"
