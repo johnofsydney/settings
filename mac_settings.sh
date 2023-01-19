@@ -1,4 +1,4 @@
-echo "Loading mac_settings.sh"
+echo 'loading mac_settings.sh'
 
   # this fixes the annoying behaviour around correcting the "rspec" in "$ bundle exec rspec"
   # https://superuser.com/questions/439209/how-to-partially-disable-the-zshs-autocorrect
