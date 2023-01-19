@@ -189,10 +189,22 @@
   },
   "ruby.useLanguageServer": false,
   "security.workspace.trust.untrustedFiles": "open",
+<<<<<<< HEAD
   "window.zoomLevel": -1,
   "editor.inlineSuggest.enabled": true,
   "github.copilot.advanced": {
     
 
   }
+=======
+  "editor.inlineSuggest.enabled": true,
+  "github.copilot.enable": {
+
+    "*": true,
+    "yaml": false,
+    "plaintext": false,
+    "markdown": false
+  },
+  "window.zoomLevel": -1
+>>>>>>> f6587276497598343377d98edf9bf821a9ce4764
 }

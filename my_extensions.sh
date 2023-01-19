@@ -1,4 +1,4 @@
-
+echo 'loading my_extensions.sh'
 
 PROMPT_COMMAND='history -a'
 # appends shell history to histoery on exit, rather than overwrite. maybe future improvements?
@@ -38,6 +38,7 @@ alias glog="git log --graph --all --pretty='format:%C(auto)%h %C(cyan)%ar %C(aut
 alias gc-="git checkout -"
 alias dev="git checkout develop && git fetch && git pull"
 alias master="git checkout master && git fetch && git pull"
+alias main="git checkout main && git fetch && git pull"
 
 # alias recent="git recent -n10"
 alias recent="git branch --sort=-committerdate -v"
@@ -53,7 +54,7 @@ alias nn="npm run test_dev && eslint spec *.js"
 alias be="bundle exec"
 alias bep="bundle exec rake parallel:spec"
 alias bepc="COVERAGE=true bundle exec rake parallel:spec"
-alias ber="bundle exec rspec"
+alias ber="gd --name-only master HEAD spec/**/*spec.rb | xargs bundle exec rspec --format=documentation --profile 10"
 alias berc="bundle exec rails console"
 alias bers="bundle exec rails server"
 alias berdoc="bundle exec rspec --format=documentation"

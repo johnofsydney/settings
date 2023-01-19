@@ -1,4 +1,4 @@
-
+echo 'loading os_detector.sh'
 
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
   echo "Setting specific options for Linux"

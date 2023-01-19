@@ -1,3 +1,5 @@
+echo "Loading oh-my-zsh-config.sh"
+
 ###############################################
 ##### The stuff that comes with Oh My Zsh #####
 ###############################################
@@ -16,7 +18,7 @@ export ZSH="$HOME/.oh-my-zsh"
 
 ZSH_THEME="john-candy-kingdom" # now a symlink in the themes folder
 # `ln -s ~/Projects/John/settings/john-candy-kingdom.zsh-theme ~/.oh-my-zsh/themes/john-candy-kingdom.zsh-theme`
-#ZSH_THEME="john-robbyrussell" # now a symlink in the themes folder
+# ZSH_THEME="john-robbyrussell" # now a symlink in the themes folder
 
 
 # Set list of themes to pick from when loading at random
@@ -50,13 +52,13 @@ ZSH_THEME="john-candy-kingdom" # now a symlink in the themes folder
 # DISABLE_AUTO_TITLE="true"
 
 # Uncomment the following line to enable command auto-correction.
-# ENABLE_CORRECTION="true"
+ENABLE_CORRECTION="true"
 
 # Uncomment the following line to display red dots whilst waiting for completion.
 # You can also set it to another string to have that shown instead of the default red dots.
 # e.g. COMPLETION_WAITING_DOTS="%F{yellow}waiting...%f"
 # Caution: this setting can cause issues with multiline prompts in zsh < 5.7.1 (see #5765)
-# COMPLETION_WAITING_DOTS="true"
+COMPLETION_WAITING_DOTS="true"
 
 # Uncomment the following line if you want to disable marking untracked files
 # under VCS as dirty. This makes repository status check for large repositories
