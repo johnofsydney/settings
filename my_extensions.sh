@@ -41,7 +41,7 @@ alias master="git checkout master && git fetch && git pull"
 alias main="git checkout main && git fetch && git pull"
 
 # alias recent="git recent -n10"
-alias recent="git branch --sort=-committerdate -v"
+alias recent="git recent -n 10"
 alias gp="git push"
 alias gd="git diff"
 alias gl="git pull"
