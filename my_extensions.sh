@@ -59,7 +59,7 @@ alias ber="bundle exec rspec"
 alias berdiff="gd --name-only master HEAD spec/**/*spec.rb | xargs bundle exec rspec --format=documentation --profile 10"
 alias berc="bundle exec rails console"
 alias bers="bundle exec rails server"
-alias berdoc="bundle exec rspec --format=documentation"
+alias berdoc="bundle exec rspec  --profile --format=documentation"
 alias berf="bundle exec rspec --format=documentation --only-failures"
 alias beer=ber
 alias becop="bundle exec rubocop"
@@ -87,6 +87,12 @@ alias killspring="ps ax | grep spring | cut -f1 -d' ' | xargs kill"
 function gac () {
   git add .
   git commit -m "$@"
+}
+
+function chat () {
+    echo args: "$@"
+
+  curl -s -X POST -H "Content-Type: application/json" -H "Authorization: Bearer ${CHAT_KEY}" -d '{"prompt": "'"$@"'", "max_tokens": 1000, "model": "text-davinci-003"}' https://api.openai.com/v1/completions\?format=json | jq ".choices[0].text" | sed 's/\\n/\n/g' | sed 's/"$//' | cat
 }
 
 function hh () {
