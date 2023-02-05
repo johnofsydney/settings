@@ -196,5 +196,6 @@
     "plaintext": false,
     "markdown": false
   },
-  "vsicons.dontShowNewVersionMessage": true
+  "vsicons.dontShowNewVersionMessage": true,
+  "window.zoomLevel": -1
 }
