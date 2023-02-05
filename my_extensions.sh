@@ -90,7 +90,7 @@ function gac () {
 }
 
 function chat () {
-  curl -s -X POST -H "Content-Type: application/json" -H "Authorization: Bearer ${CHAT_KEY}" -d '{"prompt": "'"$@"'", "max_tokens": 1000, "model": "text-davinci-003"}' https://api.openai.com/v1/completions\?format=json | jq ".choices[0].text" | sed 's/\\n/\n/g' | sed 's/"$//' | cat
+  curl -s -X POST -H "Content-Type: application/json" -H "Authorization: Bearer ${CHAT_KEY}" -d '{"prompt": "'"$@"'", "max_tokens": 1000, "model": "text-davinci-003"}' https://api.openai.com/v1/completions\?format=json | jq ".choices[0].text" | sed 's/\\n/\n/g' | sed 's/"$//' | xargs printf
 }
 
 function hh () {
