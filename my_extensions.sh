@@ -75,6 +75,7 @@ alias ..="cd .."
 alias ...="cd ../.."
 alias ....="cd ../../.."
 alias reloadz="source ~/.zshrc"
+alias reload="source ~/.zshrc"
 alias xx="exit"
 
 alias readme="bat README.md"
