@@ -100,6 +100,15 @@ function chat () {
   sed 's/"$//'
 }
 
+function goog () {
+  echo "Searching for : $@"
+  for term in $@ ; do
+      echo "$term"
+      search="$search%20$term"
+  done
+      open "http://www.google.com/search?q=$search"
+}
+
 function hh () {
   if [[ "$SHELL" == *"zsh"* ]]; then
     history -E 1 | grep -E "$@"
