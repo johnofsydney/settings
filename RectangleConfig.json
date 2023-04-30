@@ -226,11 +226,11 @@
       "modifierFlags" : 786432
     },
     "centerThird" : {
-      "keyCode" : 3,
+      "keyCode" : 87,
       "modifierFlags" : 786432
     },
     "firstThird" : {
-      "keyCode" : 2,
+      "keyCode" : 91,
       "modifierFlags" : 786432
     },
     "firstTwoThirds" : {
@@ -242,7 +242,7 @@
       "modifierFlags" : 786432
     },
     "lastThird" : {
-      "keyCode" : 5,
+      "keyCode" : 84,
       "modifierFlags" : 786432
     },
     "lastTwoThirds" : {
