@@ -30,6 +30,12 @@ compinit
 
 compdef _dirs d
 
+# Rectangle app settings
+alias 8br='open -g "rectangle://execute-action?name=bottom-right-eighth"'
+alias 8tr='open -g "rectangle://execute-action?name=top-right-eighth"'
+alias 8bl='open -g "rectangle://execute-action?name=bottom-left-eighth"'
+alias 8tl='open -g "rectangle://execute-action?name=top-left-eighth"'
+
 # =================================
 
 # setopt EXTENDED_HISTORY
