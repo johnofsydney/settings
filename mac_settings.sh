@@ -36,6 +36,14 @@ alias 8tr='open -g "rectangle://execute-action?name=top-right-eighth"'
 alias 8bl='open -g "rectangle://execute-action?name=bottom-left-eighth"'
 alias 8tl='open -g "rectangle://execute-action?name=top-left-eighth"'
 
+
+alias 99='open -g "rectangle://execute-action?name=top-right-ninth"'
+alias 96='open -g "rectangle://execute-action?name=middle-right-ninth"'
+alias 93='open -g "rectangle://execute-action?name=bottom-right-ninth"'
+alias 97='open -g "rectangle://execute-action?name=top-left-ninth"'
+alias 94='open -g "rectangle://execute-action?name=middle-left-ninth"'
+alias 91='open -g "rectangle://execute-action?name=bottom-left-ninth"'
+
 # =================================
 
 # setopt EXTENDED_HISTORY

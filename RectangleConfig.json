@@ -209,6 +209,10 @@
       "keyCode" : 38,
       "modifierFlags" : 786432
     },
+    "bottomLeftNinth" : {
+      "keyCode" : 18,
+      "modifierFlags" : 917504
+    },
     "bottomLeftSixth" : {
       "keyCode" : 83,
       "modifierFlags" : 786432
@@ -281,6 +285,10 @@
       "keyCode" : 27,
       "modifierFlags" : 786432
     },
+    "topCenterNinth" : {
+      "keyCode" : 85,
+      "modifierFlags" : 917504
+    },
     "topHalf" : {
       "keyCode" : 126,
       "modifierFlags" : 786432
@@ -289,6 +297,14 @@
       "keyCode" : 32,
       "modifierFlags" : 786432
     },
+    "topLeftEighth" : {
+      "keyCode" : 18,
+      "modifierFlags" : 917504
+    },
+    "topLeftNinth" : {
+      "keyCode" : 89,
+      "modifierFlags" : 917504
+    },
     "topLeftSixth" : {
       "keyCode" : 89,
       "modifierFlags" : 786432
@@ -296,6 +312,10 @@
     "topRight" : {
       "keyCode" : 34,
       "modifierFlags" : 786432
+    },
+    "topRightNinth" : {
+      "keyCode" : 92,
+      "modifierFlags" : 917504
     },
     "topRightSixth" : {
       "keyCode" : 92,

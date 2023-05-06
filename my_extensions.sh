@@ -83,6 +83,8 @@ alias schema="bat db/schema.rb"
 alias weather="curl wttr.in"
 alias please="sudo"
 
+alias meet="open https://meet.google.com/"
+
 alias killspring="ps ax | grep spring | cut -f1 -d' ' | xargs kill"
 
 function gac () {
