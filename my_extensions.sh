@@ -53,8 +53,8 @@ alias gl="git pull"
 ######              spec aliases             ######
 alias nn="npm run test_dev && eslint spec *.js"
 alias be="bundle exec"
-alias bep="bundle exec rake parallel:spec"
-alias bepc="COVERAGE=true bundle exec rake parallel:spec"
+alias bep="be rake parallel:load_schema && bundle exec rake parallel:spec"
+alias bepc="COVERAGE=true bep"
 alias ber="bundle exec rspec"
 alias berdiff="gd --name-only master HEAD spec/**/*spec.rb | xargs bundle exec rspec --format=documentation --profile 10"
 alias berc="bundle exec rails console"
@@ -164,4 +164,50 @@ function dcop () {
 
 
 
+# FOR REFERENCE
+# echo 'loading work_functions.sh'
 
+# function load_latest_database () {
+#   cd ~/Downloads
+
+#   echo $PWD
+
+#   MATCHING_FILES=($(ls *database*.gz))
+#   LATEST_ZIPPED_FILE=${MATCHING_FILES[-1]}
+#   echo "1. Loading latest database from: $LATEST_ZIPPED_FILE"
+
+#   gunzip $LATEST_ZIPPED_FILE
+#   UNZIPPED_FILE=${LATEST_ZIPPED_FILE%???}
+#   echo "2. Unzipped file: $UNZIPPED_FILE"
+
+#   echo "3. Dropping database"
+#   dropdb sherpa_development
+
+#   echo "4. Creating database"
+#   createdb sherpa_development
+
+#   echo "5. Loading database"
+#   psql -d sherpa_development < $UNZIPPED_FILE
+
+#   echo "6. Removing files"
+#   rm $UNZIPPED_FILE
+
+#   echo "7. Adding password to database"
+#   cd ~/Projects/Sherpa/sherpa-backend
+#   bundle exec rails runner ~/Projects/Sherpa/add_password_to_development_database.rb
+
+#   if [ $(git status --porcelain | wc -l) -eq "0" ]; then
+#     echo "🟢 Git repo is clean. Continuing...\n"
+#   else
+#     echo "🔴 Git repo dirty. Quit."
+#     return 1
+#   fi
+
+#   echo "8. Running bundle install && db:migrate"
+#   bundle install
+#   bundle exec rails db:migrate
+#   git checkout db/schema.rb
+
+#   echo "9. Running post_deploy"
+#   bundle exec rake post_deploy
+# }
