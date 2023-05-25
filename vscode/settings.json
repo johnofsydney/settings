@@ -1,4 +1,4 @@
-  {
+{
   "workbench.preferredLightColorTheme": "Atom One Light",
   "atomKeymap.promptV3Features": true,
   "files.autoSave": "afterDelay",
@@ -7,6 +7,7 @@
   "editor.formatOnPaste": true,
   "editor.formatOnSave": false,
   "editor.wordWrap": "on",
+  "editor.inlineSuggest.enabled": true,
   // Controls if quick suggestions should show up while typing
   "editor.quickSuggestions": {
     "other": true,
@@ -184,9 +185,7 @@
   "html.format.templating": true,
   "editor.fontLigatures": false,
   "editor.fontFamily": "Menlo, Courier New",
-  "ruby.languageServer": {
-
-  },
+  "ruby.languageServer": {},
   "ruby.useLanguageServer": false,
   "security.workspace.trust.untrustedFiles": "open",
   "editor.inlineSuggest.enabled": true,
@@ -196,5 +195,6 @@
     "plaintext": false,
     "markdown": false
   },
-  "vsicons.dontShowNewVersionMessage": true
+  "vsicons.dontShowNewVersionMessage": true,
+  "window.zoomLevel": -1
 }

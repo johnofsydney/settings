@@ -69,7 +69,7 @@ alias rspec="nocorrect rspec"
 
 
 alias aa="atom ."
-alias cc="code ."
+alias cc="code-insiders ."
 
 alias ..="cd .."
 alias ...="cd ../.."

@@ -31,10 +31,12 @@ compinit
 compdef _dirs d
 
 # Rectangle app settings
-alias 8br='open -g "rectangle://execute-action?name=bottom-right-eighth"'
-alias 8tr='open -g "rectangle://execute-action?name=top-right-eighth"'
-alias 8bl='open -g "rectangle://execute-action?name=bottom-left-eighth"'
-alias 8tl='open -g "rectangle://execute-action?name=top-left-eighth"'
+alias 83='open -g "rectangle://execute-action?name=bottom-right-eighth"'
+alias 86='open -g "rectangle://execute-action?name=bottom-center-right-eighth"'
+alias 89='open -g "rectangle://execute-action?name=top-right-eighth"'
+alias 81='open -g "rectangle://execute-action?name=bottom-left-eighth"'
+alias 84='open -g "rectangle://execute-action?name=bottom-center-left-eighth"'
+alias 87='open -g "rectangle://execute-action?name=top-left-eighth"'
 
 
 alias 99='open -g "rectangle://execute-action?name=top-right-ninth"'
