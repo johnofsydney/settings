@@ -33,8 +33,6 @@ alias john="cd ~/Projects/John/"
 ######              git aliases              ######
 alias ga="git add ."
 alias gst="git status"
-# alias glog="git log --oneline --graph --decorate"
-# alias glo="git log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit"
 alias glog="git log --graph --all --pretty='format:%C(auto)%h %C(cyan)%ar %C(auto)%d %C(magenta)%an %C(auto)%s'"
 alias gc-="git checkout -"
 alias dev="git checkout develop && git fetch && git pull"
@@ -85,11 +83,18 @@ alias please="sudo"
 
 alias meet="open https://meet.google.com/"
 
-alias killspring="ps ax | grep spring | cut -f1 -d' ' | xargs kill"
-
 function gac () {
   git add .
   git commit -m "$@"
+}
+
+function hh () {
+  if [[ "$SHELL" == *"zsh"* ]]; then
+    history -E 1 | grep -E "$@"
+  else
+    # assume it is bash.
+    history -E | grep -E "$@"
+  fi
 }
 
 function chat () {
@@ -111,15 +116,6 @@ function goog () {
       open "http://www.google.com/search?q=$search"
 }
 
-function hh () {
-  if [[ "$SHELL" == *"zsh"* ]]; then
-    history -E 1 | grep -E "$@"
-  else
-    # assume it is bash.
-    history -E | grep -E "$@"
-  fi
-}
-
 function mkcd () { mkdir -p "$@" && cd "$@"; }
 
 function npj () {
@@ -136,12 +132,6 @@ function npj () {
   curl "https://raw.githubusercontent.com/jashkenas/underscore/master/underscore.js > js/underscore.js"
   touch "css/main.css"
 }
-
-# function addnewline () {
-#   NEWLINE=$'\n'
-#   MARKER_AND_SPACE='$ '
-#   PROMPT=${PROMPT}${NEWLINE}${MARKER_AND_SPACE}
-# }
 
 function runNested() {
   color=cyan
@@ -161,53 +151,3 @@ function runNested() {
 function dcop () {
   git diff --name-status master | grep -v "^D\|^R" | grep ".rb" | awk '{print $2}' | xargs bundle exec rubocop
 }
-
-
-
-# FOR REFERENCE
-# echo 'loading work_functions.sh'
-
-# function load_latest_database () {
-#   cd ~/Downloads
-
-#   echo $PWD
-
-#   MATCHING_FILES=($(ls *database*.gz))
-#   LATEST_ZIPPED_FILE=${MATCHING_FILES[-1]}
-#   echo "1. Loading latest database from: $LATEST_ZIPPED_FILE"
-
-#   gunzip $LATEST_ZIPPED_FILE
-#   UNZIPPED_FILE=${LATEST_ZIPPED_FILE%???}
-#   echo "2. Unzipped file: $UNZIPPED_FILE"
-
-#   echo "3. Dropping database"
-#   dropdb sherpa_development
-
-#   echo "4. Creating database"
-#   createdb sherpa_development
-
-#   echo "5. Loading database"
-#   psql -d sherpa_development < $UNZIPPED_FILE
-
-#   echo "6. Removing files"
-#   rm $UNZIPPED_FILE
-
-#   echo "7. Adding password to database"
-#   cd ~/Projects/Sherpa/sherpa-backend
-#   bundle exec rails runner ~/Projects/Sherpa/add_password_to_development_database.rb
-
-#   if [ $(git status --porcelain | wc -l) -eq "0" ]; then
-#     echo "🟢 Git repo is clean. Continuing...\n"
-#   else
-#     echo "🔴 Git repo dirty. Quit."
-#     return 1
-#   fi
-
-#   echo "8. Running bundle install && db:migrate"
-#   bundle install
-#   bundle exec rails db:migrate
-#   git checkout db/schema.rb
-
-#   echo "9. Running post_deploy"
-#   bundle exec rake post_deploy
-# }

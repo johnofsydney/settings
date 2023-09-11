@@ -19,5 +19,6 @@
     "statusBarItem.remoteForeground": "#15202b",
     "commandCenter.border": "#15202b99"
   },
-  "peacock.color": "#8eeb91"
+  "peacock.color": "#8eeb91",
+  "editor.acceptSuggestionOnEnter": "on"
 }
