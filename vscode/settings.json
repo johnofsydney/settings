@@ -18,6 +18,7 @@
     "rgba(79,236,236,0.2)"
   ],
   "terminal.integrated.shell.osx": "/bin/zsh",
+  "terminal.integrated.fontFamily": "Futura",
   "peacock.favoriteColors": [
     {
       "name": "Angular Red",
@@ -124,6 +125,5 @@
     "plaintext": false,
     "markdown": false
   },
-  "vsicons.dontShowNewVersionMessage": true,
-  "window.zoomLevel": -1
+  "vsicons.dontShowNewVersionMessage": true
 }
