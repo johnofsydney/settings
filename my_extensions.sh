@@ -27,6 +27,7 @@ alias settings="cd ~/Projects/John/settings/"
 alias notes="cd ~/Projects/John/notes/"
 alias exercisms="cd ~/Projects/John/exercisms/"
 alias john="cd ~/Projects/John/"
+alias lester="cd ~/Projects/John/lester"
 ##################################################
 
 ###################################################
