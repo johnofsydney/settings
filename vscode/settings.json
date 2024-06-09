@@ -18,7 +18,7 @@
     "rgba(79,236,236,0.2)"
   ],
   "terminal.integrated.shell.osx": "/bin/zsh",
-  "terminal.integrated.fontFamily": "Futura",
+  "terminal.integrated.fontFamily": "Menlo",
   "peacock.favoriteColors": [
     {
       "name": "Angular Red",
@@ -109,7 +109,8 @@
   "workbench.iconTheme": "vscode-icons",
   "editor.accessibilitySupport": "off",
   "terminal.integrated.env.osx": {
-    "FIG_NEW_SESSION": "1"
+    "FIG_NEW_SESSION": "1",
+    "Q_NEW_SESSION": "1"
   },
   "workbench.colorTheme": "Atom One Light",
   "html.format.templating": true,
