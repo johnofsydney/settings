@@ -64,6 +64,7 @@ alias beer=ber
 alias becop="bundle exec rubocop"
 alias bb="becop && ber && grep -r -n --exclude-dir={node_modules,tmp,coverage} binding.pry ./"
 alias rspec="nocorrect rspec"
+alias config="nocorrect config"
 
 
 
