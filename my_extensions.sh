@@ -70,6 +70,10 @@ alias rspec="nocorrect rspec"
 alias aa="atom ."
 alias cc="code-insiders ."
 
+# python3 aliases
+alias python=python3
+alias pip=pip3
+
 alias ..="cd .."
 alias ...="cd ../.."
 alias ....="cd ../../.."

@@ -103,8 +103,12 @@
   "ruby.useBundler": true,
   // "ruby.format": false,
   "ruby.format": "rubocop",
-
   "emmet.triggerExpansionOnTab": true,
+  "emmet.showSuggestionsAsSnippets": true,
+  "emmet.includeLanguages": {
+    "html.erb": "html",
+    "erb": "html"
+  },
   "git.mergeEditor": false,
   "workbench.iconTheme": "vscode-icons",
   "editor.accessibilitySupport": "off",
@@ -122,10 +126,27 @@
   "editor.inlineSuggest.enabled": true,
   "github.copilot.enable": {
     "*": true,
-    "yaml": false,
     "plaintext": false,
-    "markdown": false
+    "markdown": false,
+    "scminput": false,
+    "yaml": false
   },
   "vsicons.dontShowNewVersionMessage": true,
-  "editor.wordWrap": "on"
+  "editor.wordWrap": "on",
+  "workbench.settings.applyToAllProfiles": [],
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "search.useGlobalIgnoreFiles": true,
+  "search.useParentIgnoreFiles": true,
+  "pieces.cloudCapabilities": "Blended",
+  "pieces.telemetry": true,
+  "rubyLsp.rubyVersionManager": {
+
+    "identifier": "auto"
+  },
+  "rubyLsp.format.enable": false,
+  "editor.formatOnSave": true,
+  "pieces.OS.launchOnStartup": "Yes",
+  "editor.renderWhitespace": "all"
 }
