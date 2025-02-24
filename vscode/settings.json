@@ -1,131 +1,142 @@
 {
-  // The number of spaces a tab is equal to. This setting is overridden
-  // based on the file contents when `editor.detectIndentation` is true.
+  "editor.wordWrap": "on",
   "editor.tabSize": 2,
-  // Insert spaces when pressing Tab. This setting is overriden
-  // based on the file contents when `editor.detectIndentation` is true.
   "editor.insertSpaces": true,
-  // When opening a file, `editor.tabSize` and `editor.insertSpaces`
-  // will be detected based on the file contents. Set to false to keep
-  // the values you've explicitly set, above.
+  "editor.formatOnPaste": false,
   "editor.detectIndentation": false,
-  // Defining custom colors instead of default "Rainbow" for dark backgrounds.
-  // (Sorry: Changing them needs an editor restart for now!)
+  "editor.accessibilitySupport": "off",
+  "editor.inlineSuggest.enabled": true,
+  "editor.minimap.enabled": false,
+  "editor.renderWhitespace": "all",
+  "editor.multiCursorModifier": "ctrlCmd",
+  "editor.snippetSuggestions": "top",
+  "editor.fontLigatures": false,
+  "editor.fontFamily": "Menlo, Courier New",
+  "editor.fontSize": 12,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "workbench.colorTheme": "Atom One Light",
+  "workbench.sideBar.location": "left",
+  "workbench.startupEditor": "newUntitledFile",
+  "window.zoomLevel": 1,
+  "files.autoSaveWhenNoErrors": true,
+  "files.trimTrailingWhitespace": true,
+  "files.hotExit": "onExitAndWindowClose",
+  "files.associations": {
+    "*.axlsx": "ruby",
+    "*.jbuilder": "ruby"
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/bower_components": true,
+    "**/public": true
+  },
+  "eslint.run": "onSave",
+  "eslint.alwaysShowStatus": true,
+  "eslint.enable": true,
+  "eslint.format.enable": true,
+  "eslint.workingDirectories": [{ "mode": "auto" }],
+  "eslint.codeActionsOnSave.rules": null,
+  "prettier.singleQuote": true,
+  "prettier.semi": false,
+  "prettier.arrowParens": "always",
+  "prettier.jsxSingleQuote": false,
+  "prettier.trailingComma": "all",
+  "prettier.printWidth": 120,
+  "prettier-eslint.eslintIntegration": true,
+  "terminal.integrated.fontFamily": "Menlo",
+  "terminal.integrated.env.osx": {
+    "FIG_NEW_SESSION": "1",
+    "Q_NEW_SESSION": "1"
+  },
+  "gitlens.keymap": "chorded",
+  "gitlens.advanced.messages": {
+    "suppressCommitHasNoPreviousCommitWarning": false,
+    "suppressCommitNotFoundWarning": false,
+    "suppressFileNotUnderSourceControlWarning": false,
+    "suppressGitVersionWarning": false,
+    "suppressLineUncommittedWarning": false,
+    "suppressNoRepositoryWarning": false
+  },
+  "gitlens.currentLine.scrollable": false,
+  "git.mergeEditor": false,
+  "javascript.suggest.autoImports": true,
+  "javascript.updateImportsOnFileMove.enabled": "always",
+  "typescript.suggest.autoImports": true,
+  "security.workspace.trust.untrustedFiles": "open",
+  "html.format.templating": true,
+  "html.format.maxPreserveNewLines": 1,
+  "http.proxyAuthorization": null,
+  "diffEditor.ignoreTrimWhitespace": false,
+  "extensions.autoUpdate": false,
+  "vsicons.dontShowNewVersionMessage": true,
+  "explorer.confirmDragAndDrop": false,
+  "emmet.triggerExpansionOnTab": true,
   "indentRainbow.colors": [
     "rgba(255,255,64,0.2)",
     "rgba(127,255,127,0.2)",
     "rgba(255,127,255,0.2)",
     "rgba(79,236,236,0.2)"
   ],
-  "terminal.integrated.shell.osx": "/bin/zsh",
-  "terminal.integrated.fontFamily": "Menlo",
   "peacock.favoriteColors": [
-    {
-      "name": "Angular Red",
-      "value": "#b52e31"
-    },
-    {
-      "name": "Auth0 Orange",
-      "value": "#eb5424"
-    },
-    {
-      "name": "Azure Blue",
-      "value": "#007fff"
-    },
-    {
-      "name": "C# Purple",
-      "value": "#68217A"
-    },
-    {
-      "name": "Gatsby Purple",
-      "value": "#639"
-    },
-    {
-      "name": "Go Cyan",
-      "value": "#5dc9e2"
-    },
-    {
-      "name": "Java Blue-Gray",
-      "value": "#557c9b"
-    },
-    {
-      "name": "JavaScript Yellow",
-      "value": "#f9e64f"
-    },
-    {
-      "name": "Mandalorian Blue",
-      "value": "#1857a4"
-    },
-    {
-      "name": "Node Green",
-      "value": "#215732"
-    },
-    {
-      "name": "React Blue",
-      "value": "#00b3e6"
-    },
-    {
-      "name": "Something Different",
-      "value": "#832561"
-    },
-    {
-      "name": "Vue Green",
-      "value": "#42b883"
-    }
+    { "name": "Angular Red", "value": "#b52e31" },
+    { "name": "Auth0 Orange", "value": "#eb5424" },
+    { "name": "Azure Blue", "value": "#007fff" },
+    { "name": "C# Purple", "value": "#68217A" },
+    { "name": "Gatsby Purple", "value": "#639" },
+    { "name": "Go Cyan", "value": "#5dc9e2" },
+    { "name": "Java Blue-Gray", "value": "#557c9b" },
+    { "name": "JavaScript Yellow", "value": "#f9e64f" },
+    { "name": "Mandalorian Blue", "value": "#1857a4" },
+    { "name": "Node Green", "value": "#215732" },
+    { "name": "React Blue", "value": "#00b3e6" },
+    { "name": "Something Different", "value": "#832561" },
+    { "name": "Vue Green", "value": "#42b883" }
   ],
   "peacock.surpriseMeOnStartup": true,
-  "explorer.confirmDragAndDrop": false,
-  "todo-tree.tree.showScanModeButton": false,
-  "rubyTestExplorer.testFramework": "rspec",
-  "files.trimTrailingWhitespace": true,
-  "todo-tree.general.tags": [
-    "BUG",
-    "HACK",
-    "FIXME",
-    "TODO",
-    "XXX",
-    "[ ]",
-    "[x]"
-  ],
-  "todo-tree.regex.regex": "(//|#|<!--|;|/\\*|^|^\\s*(-|\\d+.))\\s*($TAGS)",
-  "yaml.schemas": {
-    "file:///Users/john.coote/.vscode/extensions/atlassian.atlascode-2.8.6/resources/schemas/pipelines-schema.json": "bitbucket-pipelines.yml"
-  },
-  "redhat.telemetry.enabled": true,
-  "mssql.connections": [
-    {
-      "server": "{{put-server-name-here}}",
-      "database": "{{put-database-name-here}}",
-      "user": "{{put-username-here}}",
-      "password": "{{put-password-here}}"
-    }
-  ],
-  "ruby.useBundler": true,
-  // "ruby.format": false,
-  "ruby.format": "rubocop",
-
-  "emmet.triggerExpansionOnTab": true,
-  "git.mergeEditor": false,
-  "workbench.iconTheme": "vscode-icons",
-  "editor.accessibilitySupport": "off",
-  "terminal.integrated.env.osx": {
-    "FIG_NEW_SESSION": "1",
-    "Q_NEW_SESSION": "1"
-  },
-  "workbench.colorTheme": "Atom One Light",
-  "html.format.templating": true,
-  "editor.fontLigatures": false,
-  "editor.fontFamily": "Menlo, Courier New",
-  "ruby.languageServer": {},
-  "ruby.useLanguageServer": false,
-  "security.workspace.trust.untrustedFiles": "open",
-  "editor.inlineSuggest.enabled": true,
   "github.copilot.enable": {
     "*": true,
     "yaml": false,
     "plaintext": false,
     "markdown": false
   },
-  "vsicons.dontShowNewVersionMessage": true,
-  "editor.wordWrap": "on"
+  "[javascript]": {
+    "editor.insertSpaces": true,
+    "editor.tabSize": 2,
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+    "editor.formatOnSave": true
+  },
+  "[javascriptreact]": {
+    "editor.insertSpaces": true,
+    "editor.tabSize": 2,
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+    "editor.formatOnSave": true
+  },
+  "[typescript]": {
+    // "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+    // "format.enable": false,
+    "editor.formatOnSave": true
+  },
+  "[ruby]": {
+    "editor.insertSpaces": true,
+    "editor.tabSize": 2
+  },
+  "[scss]": {
+    "editor.insertSpaces": false,
+    "editor.tabSize": 4
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[html]": {
+    "editor.defaultFormatter": "vscode.html-language-features"
+  },
+  "[markdown]": {
+    "editor.formatOnSave": false
+  },
+  "[xml]": {
+    "editor.defaultFormatter": "mikeburgh.xml-format"
+  }
 }

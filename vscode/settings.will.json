@@ -1,0 +1,140 @@
+{
+  "workbench.sideBar.location": "left",
+  "editor.minimap.enabled": false,
+  "editor.renderWhitespace": "all",
+  "editor.insertSpaces": true,
+  "editor.tabSize": 2,
+  "[javascript]": {
+    "editor.insertSpaces": true,
+    "editor.tabSize": 2,
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint"
+  },
+  "[javascriptreact]": {
+    "editor.insertSpaces": true,
+    "editor.tabSize": 2,
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint"
+  },
+  "[ruby]": {
+    "editor.insertSpaces": true,
+    "editor.tabSize": 2
+  },
+  "[scss]": {
+    "editor.insertSpaces": false,
+    "editor.tabSize": 4
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/bower_components": true,
+    "**/public": true
+  },
+  "editor.multiCursorModifier": "ctrlCmd",
+  "editor.snippetSuggestions": "top",
+  "editor.formatOnPaste": false,
+  "prettier.singleQuote": true,
+  "prettier.semi": false,
+  "files.associations": {
+    "*.axlsx": "ruby",
+    "*.jbuilder": "ruby"
+  },
+  "gitlens.keymap": "chorded",
+  "gitlens.advanced.messages": {
+    "suppressCommitHasNoPreviousCommitWarning": false,
+    "suppressCommitNotFoundWarning": false,
+    "suppressFileNotUnderSourceControlWarning": false,
+    "suppressGitVersionWarning": false,
+    "suppressLineUncommittedWarning": false,
+    "suppressNoRepositoryWarning": false,
+    "suppressResultsExplorerNotice": false,
+    "suppressShowKeyBindingsNotice": true
+  },
+  "workbench.startupEditor": "newUntitledFile",
+  "gitlens.views.lineHistory.enabled": true,
+  "gitlens.currentLine.scrollable": false,
+  "javascript.suggest.autoImports": true,
+  "typescript.suggest.autoImports": true,
+  "files.hotExit": "onExitAndWindowClose",
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[html]": {
+    "editor.defaultFormatter": "vscode.html-language-features"
+  },
+  "workbench.colorTheme": "Oceanic Next (Sublime)",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "eslint.run": "onSave",
+  "eslint.alwaysShowStatus": true,
+  "extensions.autoUpdate": false,
+  "editor.wordWrap": "on",
+  "prettier.arrowParens": "always",
+  "prettier.jsxSingleQuote": false,
+  "prettier.trailingComma": "all",
+  "prettier.printWidth": 120,
+  "yaml.schemas": {
+    "file:///Users/realhubdev/.vscode/extensions/atlassian.atlascode-2.10.12/resources/schemas/pipelines-schema.json": "bitbucket-pipelines.yml"
+  },
+  "atlascode.jira.jqlList": [
+    {
+      "id": "b698899a-fb9d-4cde-b6a4-4e29ec0ca6de",
+      "enabled": true,
+      "name": "My realhub Issues",
+      "query": "assignee = currentUser() AND resolution = Unresolved ORDER BY lastViewed DESC",
+      "siteId": "d22a6a67-fbf7-4727-ad36-b8697666b38d",
+      "monitor": true
+    }
+  ],
+  "javascript.updateImportsOnFileMove.enabled": "always",
+  "workbench.iconTheme": "material-icon-theme",
+  "eslint.format.enable": true,
+  "eslint.workingDirectories": [
+    {
+      "mode": "auto"
+    }
+  ],
+  "prettier-eslint.eslintIntegration": true,
+  "todo-tree.tree.showScanModeButton": false,
+  "tabnine.experimentalAutoImports": true,
+  "editor.fontSize": 12,
+  "files.trimTrailingWhitespace": true,
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "html.format.maxPreserveNewLines": 1,
+  "redhat.telemetry.enabled": false,
+  "codestream.serverUrl": "https://api.codestream.com",
+  "atlascode.bitbucket.pipelines.explorerEnabled": false,
+  "git.mergeEditor": false,
+  "security.workspace.trust.untrustedFiles": "open",
+  // macros (Extension)
+  "macros": {
+    "snippetWithDescription": [
+      "editor.action.clipboardCopyAction",
+      "editor.action.insertLineAfter",
+      {
+        "command": "editor.action.insertSnippet",
+        "when": "editorTextFocus",
+        "args": {
+          "snippet": "console.log('$CLIPBOARD', $CLIPBOARD)$0"
+        }
+      }
+    ],
+    "destructureDown": [
+      "editor.action.clipboardCopyAction",
+      "editor.action.insertLineAfter",
+      {
+        "command": "editor.action.insertSnippet",
+        "when": "editorTextFocus",
+        "args": {
+          "snippet": "const { $0 } = $CLIPBOARD"
+        }
+      }
+    ]
+  },
+  "window.zoomLevel": 1,
+  "[xml]": {
+    "editor.defaultFormatter": "mikeburgh.xml-format"
+  },
+  "http.proxyAuthorization": null,
+  "diffEditor.ignoreTrimWhitespace": false
+}

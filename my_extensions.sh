@@ -15,6 +15,7 @@ export HISTTIMEFORMAT="%d/%m/%y %T "
 export HISTFILE="$HOME/.zsh_history"
 export HISTSIZE=1000000000
 export SAVEHIST=1000000000
+export RUBYOPT='-W0' # suppress warnings
 ##################################################
 
 alias ls="ls -G"
@@ -39,8 +40,8 @@ alias gc-="git checkout -"
 alias dev="git checkout develop && git fetch && git pull"
 alias master="git checkout master && git fetch && git pull"
 alias main="git checkout main && git fetch && git pull"
+alias gcm="git checkout master"
 
-# alias recent="git recent -n10"
 alias recent="git recent -n 10"
 alias gp="git push"
 alias gd="git diff"
@@ -50,9 +51,8 @@ alias gl="git pull"
 
 ###################################################
 ######              spec aliases             ######
-alias nn="npm run test_dev && eslint spec *.js"
 alias be="bundle exec"
-alias bep="be rake parallel:load_schema && bundle exec rake parallel:spec"
+alias bep="rm tmp/spec_examples.txt && be rake parallel:load_schema && bundle exec rake parallel:spec"
 alias bepc="COVERAGE=true bep"
 alias ber="bundle exec rspec"
 alias berdiff="gd --name-only master HEAD spec/**/*spec.rb | xargs bundle exec rspec --format=documentation --profile 10"
@@ -66,18 +66,16 @@ alias bb="becop && ber && grep -r -n --exclude-dir={node_modules,tmp,coverage} b
 alias rspec="nocorrect rspec"
 alias config="nocorrect config"
 
-
-
-alias aa="atom ."
 alias cc="code-insiders ."
 
 alias ..="cd .."
 alias ...="cd ../.."
 alias ....="cd ../../.."
-alias reloadz="source ~/.zshrc"
+
 alias reload="source ~/.zshrc"
 alias xx="exit"
 
+export BAT_THEME="Dracula"
 alias readme="bat README.md"
 alias schema="bat db/schema.rb"
 alias weather="curl wttr.in"

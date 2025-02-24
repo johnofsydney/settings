@@ -5,6 +5,8 @@ vs code settings
 - make a symlink from files in this folder to location that vs code expects to find settings...
    -  `ln -s /Users/john.coote/Projects/John/settings/vscode/settings.json /Users/john.coote/Library/Application\ Support/Code/User/settings.json`
    -  `ln -s /Users/john.coote/Projects/John/settings/vscode/keybindings.json /Users/john.coote/Library/Application\ Support/Code/User/keybindings.json`
+   -  `ln -s /Users/john.coote/Projects/John/settings/vscode/settings.json /Users/john.coote/Library/Application\ Support/Code\ -\ Insiders/User/settings.json`
+   -  `ln -s /Users/john.coote/Projects/John/settings/vscode/keybindings.json /Users/john.coote/Library/Application\ Support/Code\ -\ Insiders/User/keybindings.json`
 
 
 

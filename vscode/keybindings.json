@@ -55,4 +55,8 @@
       "key": "cmd+enter",
       "command": "github.copilot.generate"
     },
+    {
+      "key": "cmd+k cmd+p",
+      "command": "codesnap.start"
+    }
 ]
