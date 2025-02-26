@@ -155,3 +155,9 @@ function runNested() {
 function dcop () {
   git diff --name-status master | grep -v "^D\|^R" | grep ".rb" | awk '{print $2}' | xargs bundle exec rubocop
 }
+
+gch() {
+  git checkout $(git branch | fzf| tr -d "[[:space:]]")
+}
+
+alias ch=gch
