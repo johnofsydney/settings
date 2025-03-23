@@ -14,6 +14,7 @@
   "editor.fontFamily": "Menlo, Courier New",
   "editor.fontSize": 12,
   "editor.codeActionsOnSave": {
+
     "source.fixAll.eslint": "explicit"
   },
   "workbench.colorTheme": "Atom One Light",
@@ -139,5 +140,15 @@
   },
   "[xml]": {
     "editor.defaultFormatter": "mikeburgh.xml-format"
-  }
+  },
+"editor.rulers": [
+  120,  // a ruler with the default or editorRuler.foreground color at column 100
+  {
+    "column": 160,
+    "color": "#ff0000"
+  },
+],
+"settingsSync.ignoredSettings": [
+
+],
 }

@@ -15,7 +15,7 @@ export HISTTIMEFORMAT="%d/%m/%y %T "
 export HISTFILE="$HOME/.zsh_history"
 export HISTSIZE=1000000000
 export SAVEHIST=1000000000
-export RUBYOPT='-W0' # suppress warnings
+# export RUBYOPT='-W0' # suppress warnings
 ##################################################
 
 alias ls="ls -G"
@@ -40,6 +40,7 @@ alias gc-="git checkout -"
 alias dev="git checkout develop && git fetch && git pull"
 alias master="git checkout master && git fetch && git pull"
 alias main="git checkout main && git fetch && git pull"
+alias staging="git checkout staging && git fetch && git pull"
 alias gcm="git checkout master"
 
 alias recent="git recent -n 10"
@@ -52,7 +53,7 @@ alias gl="git pull"
 ###################################################
 ######              spec aliases             ######
 alias be="bundle exec"
-alias bep="rm tmp/spec_examples.txt && be rake parallel:load_schema && bundle exec rake parallel:spec"
+alias bep="rm temp/spec_examples.txt || true && be rake parallel:load_schema && bundle exec parallel_rspec -o '--profile --tag ~blob_comparison'"
 alias bepc="COVERAGE=true bep"
 alias ber="bundle exec rspec"
 alias berdiff="gd --name-only master HEAD spec/**/*spec.rb | xargs bundle exec rspec --format=documentation --profile 10"
