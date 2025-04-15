@@ -198,7 +198,6 @@ tell application "iTerm"
     set session1 to it
     write text "cd $main_dir"
     write text "clear"
-    write text "bash -l -c 'APP_SERVER=puma rails server -p 3002'"
 
     delay 0.5
     set session2 to (split horizontally with profile "Matrix")
@@ -210,7 +209,7 @@ tell application "iTerm"
     write text "bash -l -c 'yarn start'"
 
     delay 0.5
-    set session3 to (split horizontally with profile "MaterialDesignColors")
+    set session3 to (split horizontally with profile "Matrix")
   end tell
 
   tell session3
@@ -219,12 +218,13 @@ tell application "iTerm"
     write text "bash -l -c 'rails console'"
 
     delay 0.5
-    set session4 to (split horizontally with profile "Lovelace")
+    set session4 to (split horizontally with profile "Matrix")
   end tell
 
   tell session4
     write text "cd $main_dir"
     write text "clear"
+    write text "bash -l -c 'APP_SERVER=puma rails server -p 3002'"
   end tell
 end tell
 
