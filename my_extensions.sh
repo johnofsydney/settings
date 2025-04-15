@@ -162,3 +162,76 @@ gch() {
 }
 
 alias ch=gch
+
+function spinup () {
+  local project="$1"
+
+  if [[ "$project" != "real" && "$project" != "lester" ]]; then
+    echo "❌ Error: argument must be 'real' or 'lester'"
+    return 1
+  fi
+
+  local main_dir=""
+  local second_dir=""
+
+  if [[ "$project" == "real" ]]; then
+    main_dir="$HOME/Projects/realhub"
+    second_dir="$HOME/Projects/realhub-frontend"
+  elif [[ "$project" == "lester" ]]; then
+    main_dir="$HOME/Projects/lester"
+    second_dir="$main_dir"
+  fi
+
+  echo "Spinning up $project project..."
+  echo "Main directory: $main_dir"
+  echo "Second directory: $second_dir"
+
+  osascript <<EOF
+tell application "iTerm"
+  activate
+
+  -- Create a new window with the default profile
+  set newWindow to (create window with default profile)
+  delay 0.5
+
+  tell current session of newWindow
+    set session1 to it
+    write text "cd $main_dir"
+    write text "clear"
+    write text "bash -l -c 'APP_SERVER=puma rails server -p 3002'"
+
+    delay 0.5
+    set session2 to (split horizontally with profile "Matrix")
+  end tell
+
+  tell session2
+    write text "cd $second_dir"
+    write text "clear"
+    write text "bash -l -c 'yarn start'"
+
+    delay 0.5
+    set session3 to (split horizontally with profile "MaterialDesignColors")
+  end tell
+
+  tell session3
+    write text "cd $main_dir"
+    write text "clear"
+    write text "bash -l -c 'rails console'"
+
+    delay 0.5
+    set session4 to (split horizontally with profile "Lovelace")
+  end tell
+
+  tell session4
+    write text "cd $main_dir"
+    write text "clear"
+  end tell
+end tell
+
+-- Optional: use Rectangle shortcut
+delay 0.5
+tell application "System Events"
+  key code 123 using {control down, option down}
+end tell
+EOF
+}
