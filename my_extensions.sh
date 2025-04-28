@@ -174,12 +174,22 @@ function spinup () {
   local main_dir=""
   local second_dir=""
 
+  local console_cmd=""
+  local server_cmd=""
+  local secondary_cmd=""
+
   if [[ "$project" == "real" ]]; then
     main_dir="$HOME/Projects/realhub"
     second_dir="$HOME/Projects/realhub-frontend"
+    console_cmd="bash -l -c 'rails console'"
+    server_cmd="bash -l -c 'APP_SERVER=puma rails server -p 3002'"
+    secondary_cmd="bash -l -c 'yarn start'"
   elif [[ "$project" == "lester" ]]; then
-    main_dir="$HOME/Projects/lester"
-    second_dir="$main_dir"
+    main_dir="$HOME/Projects/John/lester"
+    second_dir="$main_dir" # there is no seperate Frontend for lester
+    console_cmd="bash -l -c 'rails console'"
+    server_cmd="bash -l -c 'rails server -p 3000'"
+    secondary_cmd="bash -l -c 'bundle exec sidekiq'"
   fi
 
   echo "Spinning up $project project..."
@@ -191,7 +201,7 @@ tell application "iTerm"
   activate
 
   -- Create a new window with the default profile
-  set newWindow to (create window with default profile)
+  set newWindow to (create window with profile "MaterialDesignColors")
   delay 0.5
 
   tell current session of newWindow
@@ -200,31 +210,31 @@ tell application "iTerm"
     write text "clear"
 
     delay 0.5
-    set session2 to (split horizontally with profile "Matrix")
+    set session2 to (split horizontally with profile "MaterialDesignColors")
   end tell
 
   tell session2
-    write text "cd $second_dir"
+    write text "cd $main_dir"
     write text "clear"
-    write text "bash -l -c 'yarn start'"
+    write text "$console_cmd"
 
     delay 0.5
-    set session3 to (split horizontally with profile "Matrix")
+    set session3 to (split horizontally with profile "MaterialDesignColors")
   end tell
 
   tell session3
     write text "cd $main_dir"
     write text "clear"
-    write text "bash -l -c 'rails console'"
+    write text "$server_cmd"
 
     delay 0.5
-    set session4 to (split horizontally with profile "Matrix")
+    set session4 to (split vertically with profile "MaterialDesignColors")
   end tell
 
   tell session4
-    write text "cd $main_dir"
+    write text "cd $second_dir"
     write text "clear"
-    write text "bash -l -c 'APP_SERVER=puma rails server -p 3002'"
+    write text "$secondary_cmd"
   end tell
 end tell
 
