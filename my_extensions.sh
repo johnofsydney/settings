@@ -52,20 +52,18 @@ alias gl="git pull"
 
 ###################################################
 ######              spec aliases             ######
+alias rspec="nocorrect rspec"
+alias config="nocorrect config"
 alias be="bundle exec"
-alias bep="rm temp/spec_examples.txt || true && be rake parallel:load_schema && bundle exec parallel_rspec -o '--profile --tag ~blob_comparison'"
+alias bep="bundle exec rake parallel:load_schema && bundle exec parallel_rspec -o '--profile --tag ~blob_comparison'"
 alias bepc="COVERAGE=true bep"
 alias ber="bundle exec rspec"
+alias berdoc="bundle exec rspec  --profile --format=documentation"
+alias berf="bundle exec rspec --format=documentation --only-failures"
 alias berdiff="gd --name-only master HEAD spec/**/*spec.rb | xargs bundle exec rspec --format=documentation --profile 10"
 alias berc="bundle exec rails console"
 alias bers="bundle exec rails server"
-alias berdoc="bundle exec rspec  --profile --format=documentation"
-alias berf="bundle exec rspec --format=documentation --only-failures"
-alias beer=ber
-alias becop="bundle exec rubocop"
-alias bb="becop && ber && grep -r -n --exclude-dir={node_modules,tmp,coverage} binding.pry ./"
-alias rspec="nocorrect rspec"
-alias config="nocorrect config"
+alias becop="bundle exec rubocop --parallel"
 
 alias cc="code-insiders ."
 
