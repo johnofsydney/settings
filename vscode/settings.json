@@ -143,10 +143,14 @@
     "editor.defaultFormatter": "mikeburgh.xml-format"
   },
 "editor.rulers": [
-  120,  // a ruler with the default or editorRuler.foreground color at column 120
+  80,
+  {
+    "column": 120,
+    "color": "#ff0000"
+  },
   {
     "column": 160,
-    "color": "#ff0000"
+    "color": "#ff00ff"
   },
 ],
 "settingsSync.ignoredSettings": [
