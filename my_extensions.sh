@@ -65,6 +65,7 @@ alias berdiff="gd --name-only master HEAD spec/**/*spec.rb | xargs bundle exec r
 alias berc="bundle exec rails console"
 alias bers="bundle exec rails server"
 alias becop="bundle exec rubocop --parallel"
+alias dcop="git diff --staged --name-only --diff-filter=d | grep -E '\.(rb|rake)$' | xargs bundle exec rubocop"
 
 alias cc="code-insiders ."
 
@@ -162,40 +163,17 @@ gch() {
 
 alias ch=gch
 
-function spinup () {
-  local project="$1"
+function spinup_real () {
+  local main_dir="$HOME/Projects/realhub"
+  local second_dir="$HOME/Projects/realhub-frontend"
+  local third_dir="$HOME/Projects/realhub-templates-frontend"
+  local console_cmd="bash -l -c 'rails console'"
+  local server_cmd="bash -l -c 'APP_SERVER=puma rails server -p 3002'"
+  local secondary_cmd="bash -l -c 'yarn start'"
+  local third_cmd="bash -l -c 'yarn start'"
+  local sidekiq_cmd="bash -l -c 'bundle exec sidekiq'"
 
-  if [[ "$project" != "real" && "$project" != "lester" ]]; then
-    echo "❌ Error: argument must be 'real' or 'lester'"
-    return 1
-  fi
-
-  local main_dir=""
-  local second_dir=""
-  local third_dir=""
-
-  local console_cmd=""
-  local server_cmd=""
-  local secondary_cmd=""
-  local third_cmd=""
-
-  if [[ "$project" == "real" ]]; then
-    main_dir="$HOME/Projects/realhub"
-    second_dir="$HOME/Projects/realhub-frontend"
-    third_dir="$HOME/Projects/realhub-templates-frontend"
-    console_cmd="bash -l -c 'rails console'"
-    server_cmd="bash -l -c 'APP_SERVER=puma rails server -p 3002'"
-    secondary_cmd="bash -l -c 'yarn start'"
-    third_cmd="bash -l -c 'yarn start'"
-  elif [[ "$project" == "lester" ]]; then
-    main_dir="$HOME/Projects/John/lester"
-    second_dir="$main_dir" # there is no seperate Frontend for lester
-    console_cmd="bash -l -c 'rails console'"
-    server_cmd="bash -l -c 'rails server -p 3000'"
-    secondary_cmd="bash -l -c 'bundle exec sidekiq'"
-  fi
-
-  echo "Spinning up $project project..."
+  echo "Spinning up real project..."
   echo "Main directory: $main_dir"
   echo "Second directory: $second_dir"
 
@@ -203,14 +181,13 @@ function spinup () {
 tell application "iTerm"
   activate
 
-  -- Create a new window with the default profile
   set newWindow to (create window with profile "Default")
   delay 0.5
 
   tell current session of newWindow
-    set session1 to it
     write text "cd $main_dir"
     write text "clear"
+    write text "$console_cmd"
 
     delay 0.5
     set session2 to (split horizontally with profile "Default")
@@ -219,7 +196,7 @@ tell application "iTerm"
   tell session2
     write text "cd $main_dir"
     write text "clear"
-    write text "$console_cmd"
+    write text "$server_cmd"
 
     delay 0.5
     set session3 to (split horizontally with profile "Default")
@@ -228,7 +205,7 @@ tell application "iTerm"
   tell session3
     write text "cd $main_dir"
     write text "clear"
-    write text "$server_cmd"
+    write text "$sidekiq_cmd"
 
     delay 0.5
     set session4 to (split vertically with profile "Default")
@@ -250,7 +227,54 @@ tell application "iTerm"
   end tell
 end tell
 
--- Optional: use Rectangle shortcut
+delay 0.5
+tell application "System Events"
+  key code 123 using {control down, option down}
+end tell
+EOF
+}
+
+function spinup_lester () {
+  local main_dir="$HOME/Projects/John/lester"
+  local console_cmd="bash -l -c 'rails console'"
+  local server_cmd="bash -l -c 'rails server -p 3000'"
+  local secondary_cmd="bash -l -c 'bundle exec sidekiq'"
+
+  echo "Spinning up lester project..."
+  echo "Main directory: $main_dir"
+
+  osascript <<EOF
+tell application "iTerm"
+  activate
+
+  set newWindow to (create window with profile "Default")
+  delay 0.5
+
+  tell current session of newWindow
+    write text "cd $main_dir"
+    write text "clear"
+    write text "$console_cmd"
+
+    delay 0.5
+    set session2 to (split horizontally with profile "Default")
+  end tell
+
+  tell session2
+    write text "cd $main_dir"
+    write text "clear"
+    write text "$server_cmd"
+
+    delay 0.5
+    set session3 to (split vertically with profile "Default")
+  end tell
+
+  tell session3
+    write text "cd $main_dir"
+    write text "clear"
+    write text "$secondary_cmd"
+  end tell
+end tell
+
 delay 0.5
 tell application "System Events"
   key code 123 using {control down, option down}

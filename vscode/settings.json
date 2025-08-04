@@ -158,4 +158,5 @@
 ],
 "editor.bracketPairColorization.independentColorPoolPerBracketType": true,
 "editor.guides.bracketPairs": "active",
+"github.copilot.nextEditSuggestions.enabled": true,
 }
