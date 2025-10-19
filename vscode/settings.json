@@ -6,7 +6,6 @@
   "editor.detectIndentation": false,
   "editor.accessibilitySupport": "off",
   "editor.inlineSuggest.enabled": true,
-  "editor.minimap.enabled": false,
   "editor.renderWhitespace": "all",
   "editor.multiCursorModifier": "ctrlCmd",
   "editor.snippetSuggestions": "top",

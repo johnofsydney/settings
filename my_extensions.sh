@@ -41,7 +41,9 @@ alias dev="git checkout develop && git fetch && git pull"
 alias master="git checkout master && git fetch --all && git pull"
 alias main="git checkout main && git fetch --all && git pull"
 alias staging="git checkout staging && git fetch && git pull"
+alias qa="git checkout qa && git fetch && git pull"
 alias gcm="git checkout master"
+alias gmm="git merge master"
 
 alias recent="git recent -n 10"
 alias gp="git push"
@@ -155,6 +157,8 @@ function runNested() {
 
 function dcop () {
   git diff --name-status master | grep -v "^D\|^R" | grep ".rb" | awk '{print $2}' | xargs bundle exec rubocop
+  # gd main --name-only --diff-filter=d | grep -E '\.(rb|rake)$' | xargs bundle exec rubocop  --force-exclusion
+
 }
 
 gch() {
@@ -164,14 +168,13 @@ gch() {
 alias ch=gch
 
 function spinup_real () {
-  local main_dir="$HOME/Projects/realhub"
-  local second_dir="$HOME/Projects/realhub-frontend"
-  local third_dir="$HOME/Projects/realhub-templates-frontend"
+  local main_dir="$HOME/Projects/realhub" # adapt these lines to suit your own project directories
+  local second_dir="$HOME/Projects/realhub-frontend" # adapt these lines to suit your own project directories
+  local third_dir="$HOME/Projects/realhub-templates-frontend" # adapt these lines to suit your own project directories
   local console_cmd="bash -l -c 'rails console'"
   local server_cmd="bash -l -c 'APP_SERVER=puma rails server -p 3002'"
-  local secondary_cmd="bash -l -c 'yarn start'"
-  local third_cmd="bash -l -c 'yarn start'"
   local sidekiq_cmd="bash -l -c 'bundle exec sidekiq'"
+  local yarn_cmd="bash -l -c 'yarn start'"
 
   echo "Spinning up real project..."
   echo "Main directory: $main_dir"
@@ -181,6 +184,7 @@ function spinup_real () {
 tell application "iTerm"
   activate
 
+  -- Session 1: full width, console
   set newWindow to (create window with profile "Default")
   delay 0.5
 
@@ -191,39 +195,51 @@ tell application "iTerm"
 
     delay 0.5
     set session2 to (split horizontally with profile "Default")
+    delay 0.5
+    set session3 to (split horizontally with profile "Default")
   end tell
 
+  -- Session 2: half width, server
   tell session2
     write text "cd $main_dir"
     write text "clear"
     write text "$server_cmd"
 
     delay 0.5
-    set session3 to (split horizontally with profile "Default")
-  end tell
-
-  tell session3
-    write text "cd $main_dir"
-    write text "clear"
-    write text "$sidekiq_cmd"
-
-    delay 0.5
     set session4 to (split vertically with profile "Default")
   end tell
 
-  tell session4
-    write text "cd $second_dir"
+  -- Session 3: half width, yarn start (new)
+  tell session3
+    write text "cd $main_dir"
     write text "clear"
-    write text "$secondary_cmd"
+    write text "$yarn_cmd"
 
     delay 0.5
     set session5 to (split vertically with profile "Default")
+    delay 0.5
+    set session6 to (split vertically with profile "Default")
   end tell
 
+  -- Session 4: third width, sidekiq
+  tell session4
+    write text "cd $main_dir"
+    write text "clear"
+    write text "$sidekiq_cmd"
+  end tell
+
+  -- Session 5: third width, yarn_cmd
   tell session5
+    write text "cd $second_dir"
+    write text "clear"
+    write text "$yarn_cmd"
+  end tell
+
+  -- Session 6: third width, yarn_cmd
+  tell session6
     write text "cd $third_dir"
     write text "clear"
-    write text "$third_cmd"
+    write text "$yarn_cmd"
   end tell
 end tell
 
@@ -238,7 +254,7 @@ function spinup_lester () {
   local main_dir="$HOME/Projects/John/lester"
   local console_cmd="bash -l -c 'rails console'"
   local server_cmd="bash -l -c 'rails server -p 3000'"
-  local secondary_cmd="bash -l -c 'bundle exec sidekiq'"
+  local secondary_cmd="bash -l -c 'bundle exec sidekiq -v'"
 
   echo "Spinning up lester project..."
   echo "Main directory: $main_dir"
@@ -280,4 +296,16 @@ tell application "System Events"
   key code 123 using {control down, option down}
 end tell
 EOF
+}
+
+function backup_local_db () {
+  echo "Creating backup on local..."
+
+  if [[ "$PWD" == "$HOME/Projects/John/lester" ]]; then
+    db_name="sunshine_guardian_development"
+  else
+    db_name="$(basename $PWD)_development"
+  fi
+
+  pg_dump -h localhost -U postgres -d $db_name > tmp/db_backup_$(date +%Y%m%d_%H%M%S).sql
 }
