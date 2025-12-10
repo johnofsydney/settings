@@ -42,8 +42,8 @@ alias master="git checkout master && git fetch --all && git pull"
 alias main="git checkout main && git fetch --all && git pull"
 alias staging="git checkout staging && git fetch && git pull"
 alias qa="git checkout qa && git fetch && git pull"
-alias gcm="git checkout master"
-alias gmm="git merge master"
+alias gcm="git checkout main"
+alias gmm="git merge main"
 
 alias recent="git recent -n 10"
 alias gp="git push"
@@ -254,7 +254,7 @@ function spinup_lester () {
   local main_dir="$HOME/Projects/John/lester"
   local console_cmd="bash -l -c 'rails console'"
   local server_cmd="bash -l -c 'rails server -p 3000'"
-  local secondary_cmd="bash -l -c 'bundle exec sidekiq -v'"
+  local sidekiq_cmd="bash -l -c 'bundle exec sidekiq'"
 
   echo "Spinning up lester project..."
   echo "Main directory: $main_dir"
@@ -269,25 +269,37 @@ tell application "iTerm"
   tell current session of newWindow
     write text "cd $main_dir"
     write text "clear"
-    write text "$console_cmd"
+    write text "$server_cmd"
 
     delay 0.5
-    set session2 to (split horizontally with profile "Default")
+    set session2 to (split vertically with profile "Default")
   end tell
 
   tell session2
     write text "cd $main_dir"
     write text "clear"
-    write text "$server_cmd"
+    write text "$sidekiq_cmd"
+  end tell
 
+  tell current session of newWindow
     delay 0.5
-    set session3 to (split vertically with profile "Default")
+    set session3 to (split horizontally with profile "Default")
+  end tell
+
+  tell session2
+    delay 0.5
+    set session4 to (split horizontally with profile "Default")
   end tell
 
   tell session3
     write text "cd $main_dir"
     write text "clear"
-    write text "$secondary_cmd"
+    write text "$console_cmd"
+  end tell
+
+  tell session4
+    write text "cd $main_dir"
+    write text "clear"
   end tell
 end tell
 
@@ -301,11 +313,7 @@ EOF
 function backup_local_db () {
   echo "Creating backup on local..."
 
-  if [[ "$PWD" == "$HOME/Projects/John/lester" ]]; then
-    db_name="sunshine_guardian_development"
-  else
-    db_name="$(basename $PWD)_development"
-  fi
+  db_name="$(basename $PWD)_development"
 
-  pg_dump -h localhost -U postgres -d $db_name > tmp/db_backup_$(date +%Y%m%d_%H%M%S).sql
+  pg_dump -h localhost -U postgres -d $db_name > tmp/db_backup_$(basename $PWD)_$(date +%Y%m%d_%H%M%S).sql
 }

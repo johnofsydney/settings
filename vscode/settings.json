@@ -13,6 +13,7 @@
   "editor.fontFamily": "Menlo, Courier New",
   "editor.fontSize": 12,
   "editor.codeActionsOnSave": {
+    
 
     "source.fixAll.eslint": "explicit"
   },
@@ -158,4 +159,7 @@
 "editor.bracketPairColorization.independentColorPoolPerBracketType": true,
 "editor.guides.bracketPairs": "active",
 "github.copilot.nextEditSuggestions.enabled": true,
+"gitlens.rebaseEditor.ordering": "asc",
+"redhat.telemetry.enabled": true,
+"workbench.experimental.share.enabled": true,
 }
