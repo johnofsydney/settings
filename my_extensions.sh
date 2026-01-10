@@ -317,3 +317,10 @@ function backup_local_db () {
 
   pg_dump -h localhost -U postgres -d $db_name > tmp/db_backup_$(basename $PWD)_$(date +%Y%m%d_%H%M%S).sql
 }
+
+function delete_finished_branches () {
+  git branch | grep -v "main\|staging" | sed 's/^[* ]*//' | while read branch; do
+  git branch -D "$branch"
+  git push origin --delete "$branch"
+done
+}

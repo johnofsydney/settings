@@ -13,7 +13,7 @@
   "editor.fontFamily": "Menlo, Courier New",
   "editor.fontSize": 12,
   "editor.codeActionsOnSave": {
-    
+
 
     "source.fixAll.eslint": "explicit"
   },
@@ -162,4 +162,5 @@
 "gitlens.rebaseEditor.ordering": "asc",
 "redhat.telemetry.enabled": true,
 "workbench.experimental.share.enabled": true,
+"chat.viewSessions.orientation": "stacked",
 }
