@@ -52,3 +52,5 @@ alias 91='open -g "rectangle://execute-action?name=bottom-left-ninth"'
 
 alias pxc_off="blueutil --disconnect 00-16-94-20-d2-9b"
 alias pxc_on="blueutil --connect 00-16-94-20-d2-9b"
+
+[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh

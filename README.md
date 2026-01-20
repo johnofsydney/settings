@@ -1,60 +1,40 @@
 # settings
-bash stuff (aliases etc)
-- example zshrc is below. to add settings from this folder to shell, copy relevant bits from below
-vs code settings
-- make a symlink from files in this folder to location that vs code expects to find settings...
-   -  `ln -s /Users/john.coote/Projects/John/settings/vscode/settings.json /Users/john.coote/Library/Application\ Support/Code/User/settings.json`
-   -  `ln -s /Users/john.coote/Projects/John/settings/vscode/keybindings.json /Users/john.coote/Library/Application\ Support/Code/User/keybindings.json`
-   -  `ln -s /Users/john.coote/Projects/John/settings/vscode/settings.json /Users/john.coote/Library/Application\ Support/Code\ -\ Insiders/User/settings.json`
-   -  `ln -s /Users/john.coote/Projects/John/settings/vscode/keybindings.json /Users/john.coote/Library/Application\ Support/Code\ -\ Insiders/User/keybindings.json`
+This whole repo is about saving dotfiles for getting setup on a fresh install quickly and for maintaqining consistency between machines
 
-
-
-.zshrc should be like this (after install oh-my-zsh)
+## .zshrc
+Should look like this...
 ```
 
-  # If you come from bash you might have to change your $PATH.
-  # export PATH=$HOME/bin:/usr/local/bin:$PATH
+source ~/Projects/John/settings/oh-my-zsh-config.sh
+source ~/Projects/John/settings/my_extensions.sh # above mac settings / os detector
+source ~/Projects/John/settings/mac_settings.sh
+source ~/Projects/John/settings/work_aliases.sh # lower down to override defaults (1) (2)
+source ~/Projects/John/settings/env_variables.sh (2)
 
-  ZSH_DISABLE_COMPFIX="true"
-
-  # Path to your oh-my-zsh installation.
-  export ZSH="/Users/john.coote/.oh-my-zsh"
-
-  # Set name of the theme to load
-  ZSH_THEME="john-candy-kingdom" # now a symlink in the themes folder
-  # `ln -s ~/Projects/John/settings/john-candy-kingdom.zsh-theme ~/.oh-my-zsh/themes/john-candy-kingdom.zsh-theme`
-
-  # Uncomment the following line to enable command auto-correction.
-  ENABLE_CORRECTION="true"
-
-  # Uncomment the following line to display red dots whilst waiting for completion.
-  COMPLETION_WAITING_DOTS="true"
-
-  # Which plugins would you like to load?
-  # Standard plugins can be found in ~/.oh-my-zsh/plugins/*
-  # Custom plugins may be added to ~/.oh-my-zsh/custom/plugins/
-  # Example format: plugins=(rails git textmate ruby lighthouse)
-  # Add wisely, as too many plugins slow down shell startup.
-  plugins=(git colorize)
-
-  source $ZSH/oh-my-zsh.sh
-
-
-  source ~/Projects/John/settings/my_extensions.bash
-  source ~/Projects/John/settings/work_aliases.bash
-
-  export PATH="/usr/local/sbin:$PATH"
-
-  ############################################################################
-  #####                           ENV VARIABLES                           ####
-  ############################################################################
-
-
-  export NVM_DIR="$HOME/.nvm"
-  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"  # This loads nvm
-  [ -s "$NVM_DIR/bash_completion" ] && . "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
-
-  # Add RVM to PATH for scripting. Make sure this is the last PATH variable change.
-  export PATH="$PATH:$HOME/.rvm/bin"
+...
+And then any of the machine specific setup, eg PATH changes
 ```
+
+(1) choose work or home as needed
+(2) should be gitignored
+
+## Sync Up OR Import application settings
+
+### For VS Code (standard and insiders editions)
+```
+$ ln -s /Users/john.coote/Projects/John/settings/vscode/keybindings.json /Users/john.coote/Library/Application\ Support/Code/User/keybindings.json
+$ ln -s /Users/john.coote/Projects/John/settings/vscode/settings.json /Users/john.coote/Library/Application\ Support/Code/User/settings.json
+$ ln -s /Users/john.coote/Projects/John/settings/vscode/settings.json /Users/john.coote/Library/Application\ Support/Code\ -\ Insiders/User/settings.json
+$ ln -s /Users/john.coote/Projects/John/settings/vscode/keybindings.json /Users/john.coote/Library/Application\ Support/Code\ -\ Insiders/User/keybindings.json
+```
+
+### For Oh-My-Zsh theme
+```
+$ ln -s ~/Projects/John/settings/john-candy-kingdom.zsh-theme ~/.oh-my-zsh/themes/john-candy-kingdom.zsh-theme
+```
+
+### For Rectangle
+In the App GUI, _Import Settings_ from this directory
+
+### For iTerm
+In the App GUI, under General / Settings, choose _Load Settings from a custom folder or URL_ and select the preferences in `settings/iterm_preferences`
