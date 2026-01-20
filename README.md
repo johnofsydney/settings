@@ -1,5 +1,5 @@
 # settings
-This whole repo is about saving dotfiles for getting setup on a fresh install quickly and for maintaqining consistency between machines
+This whole repo is about saving dotfiles for getting setup on a fresh install quickly and for maintaining a consistent environment between machines
 
 ## .zshrc
 Should look like this...
@@ -22,15 +22,15 @@ And then any of the machine specific setup, eg PATH changes
 
 ### For VS Code (standard and insiders editions)
 ```
-$ ln -s /Users/john.coote/Projects/John/settings/vscode/keybindings.json /Users/john.coote/Library/Application\ Support/Code/User/keybindings.json
-$ ln -s /Users/john.coote/Projects/John/settings/vscode/settings.json /Users/john.coote/Library/Application\ Support/Code/User/settings.json
-$ ln -s /Users/john.coote/Projects/John/settings/vscode/settings.json /Users/john.coote/Library/Application\ Support/Code\ -\ Insiders/User/settings.json
-$ ln -s /Users/john.coote/Projects/John/settings/vscode/keybindings.json /Users/john.coote/Library/Application\ Support/Code\ -\ Insiders/User/keybindings.json
+ln -s /Users/john.coote/Projects/John/settings/vscode/keybindings.json /Users/john.coote/Library/Application\ Support/Code/User/keybindings.json
+ln -s /Users/john.coote/Projects/John/settings/vscode/settings.json /Users/john.coote/Library/Application\ Support/Code/User/settings.json
+ln -s /Users/john.coote/Projects/John/settings/vscode/settings.json /Users/john.coote/Library/Application\ Support/Code\ -\ Insiders/User/settings.json
+ln -s /Users/john.coote/Projects/John/settings/vscode/keybindings.json /Users/john.coote/Library/Application\ Support/Code\ -\ Insiders/User/keybindings.json
 ```
 
 ### For Oh-My-Zsh theme
 ```
-$ ln -s ~/Projects/John/settings/john-candy-kingdom.zsh-theme ~/.oh-my-zsh/themes/john-candy-kingdom.zsh-theme
+ln -s ~/Projects/John/settings/john-candy-kingdom.zsh-theme ~/.oh-my-zsh/themes/john-candy-kingdom.zsh-theme
 ```
 
 ### For Rectangle
@@ -38,3 +38,8 @@ In the App GUI, _Import Settings_ from this directory
 
 ### For iTerm
 In the App GUI, under General / Settings, choose _Load Settings from a custom folder or URL_ and select the preferences in `settings/iterm_preferences`
+
+### ZSH Theme
+```
+ln -s ~/Projects/John/settings/john-candy-kingdom.zsh-theme ~/.oh-my-zsh/themes/john-candy-kingdom.zsh-theme
+```
