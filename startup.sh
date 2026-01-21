@@ -70,6 +70,12 @@ brew install ghostscript
 brew install pcre
 brew install yarn
 
+# For boundary
+# https://developer.hashicorp.com/boundary/tutorials/get-started-community/community-get-started-desktop-app
+brew tap hashicorp/tap
+brew install hashicorp-boundary-desktop
+
+
 # RVM
 curl -sSL https://rvm.io/pkuczynski.asc | gpg --import
 rvm get stable
