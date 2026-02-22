@@ -163,4 +163,5 @@
 "redhat.telemetry.enabled": true,
 "workbench.experimental.share.enabled": true,
 "chat.viewSessions.orientation": "stacked",
+"chat.tools.terminal.outputLocation": "chat",
 }

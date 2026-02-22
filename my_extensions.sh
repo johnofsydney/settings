@@ -69,6 +69,13 @@ alias bers="bundle exec rails server"
 alias becop="bundle exec rubocop --parallel"
 alias dcop="git diff --staged --name-only --diff-filter=d | grep -E '\.(rb|rake)$' | xargs bundle exec rubocop"
 
+
+##################################################
+######            ssh aliases            ######
+alias ssh_lester_db_server="ssh deploy@${LESTER_REMOTE_DB_HOST}"
+alias ssh_lester_app_server="ssh deploy@${LESTER_REMOTE_APP_HOST}"
+##################################################
+
 alias cc="code-insiders ."
 
 # python3 aliases
@@ -86,9 +93,6 @@ export BAT_THEME="Dracula"
 alias readme="bat README.md"
 alias schema="bat db/schema.rb"
 alias weather="curl wttr.in"
-alias please="sudo"
-
-alias meet="open https://meet.google.com/"
 
 function gac () {
   git add .
@@ -319,8 +323,14 @@ function backup_local_db () {
 }
 
 function delete_finished_branches () {
-  git branch | grep -v "main\|staging" | sed 's/^[* ]*//' | while read branch; do
+  git branch | sed 's/^[* ]*//' | grep -vE "^(main|staging)$" | while read branch; do
+  echo "Local branch: $branch"
   git branch -D "$branch"
-  git push origin --delete "$branch"
+  # Check if branch exists on remote before trying to delete
+  if git ls-remote --heads origin "$branch" | grep -q "$branch"; then
+    git push origin --delete "$branch"
+  else
+    echo "Branch '$branch' does not exist on remote, skipping remote deletion"
+  fi
 done
 }
