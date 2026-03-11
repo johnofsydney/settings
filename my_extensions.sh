@@ -199,9 +199,9 @@ tell application "iTerm"
     write text "$console_cmd"
 
     delay 0.5
-    set session2 to (split horizontally with profile "Default")
+    set session2 to (split horizontally with profile "Matrix")
     delay 0.5
-    set session3 to (split horizontally with profile "Default")
+    set session3 to (split horizontally with profile "MaterialDesignColors")
   end tell
 
   -- Session 2: half width, server
@@ -211,7 +211,7 @@ tell application "iTerm"
     write text "$server_cmd"
 
     delay 0.5
-    set session4 to (split vertically with profile "Default")
+    set session4 to (split vertically with profile "Matrix")
   end tell
 
   -- Session 3: half width, yarn start (new)
@@ -221,9 +221,9 @@ tell application "iTerm"
     write text "$yarn_cmd"
 
     delay 0.5
-    set session5 to (split vertically with profile "Default")
+    set session5 to (split vertically with profile "MaterialDesignColors")
     delay 0.5
-    set session6 to (split vertically with profile "Default")
+    set session6 to (split vertically with profile "MaterialDesignColors")
   end tell
 
   -- Session 4: third width, sidekiq
@@ -277,7 +277,7 @@ tell application "iTerm"
     write text "$server_cmd"
 
     delay 0.5
-    set session2 to (split vertically with profile "Default")
+    set session2 to (split vertically with profile "Matrix")
   end tell
 
   tell session2
@@ -288,7 +288,7 @@ tell application "iTerm"
 
   tell current session of newWindow
     delay 0.5
-    set session3 to (split horizontally with profile "Default")
+    set session3 to (split horizontally with profile "Lovelace")
   end tell
 
   tell session2
