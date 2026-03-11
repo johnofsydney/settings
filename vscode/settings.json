@@ -101,7 +101,9 @@
     "plaintext": false,
     "markdown": false,
     "scminput": false,
-    "yaml": false
+    "yaml": false,
+    "go": false,
+    "ruby": true
   },
   "[javascript]": {
     "editor.insertSpaces": true,

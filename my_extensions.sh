@@ -44,6 +44,7 @@ alias staging="git checkout staging && git fetch && git pull"
 alias qa="git checkout qa && git fetch && git pull"
 alias gcm="git checkout main"
 alias gmm="git merge main"
+alias gcb="git checkout -b"
 
 alias recent="git recent -n 10"
 alias gp="git push"
