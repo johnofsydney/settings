@@ -268,7 +268,7 @@ function spinup_lester () {
 tell application "iTerm"
   activate
 
-  set newWindow to (create window with profile "Default")
+  set newWindow to (create window with profile "Matrix")
   delay 0.5
 
   tell current session of newWindow
@@ -288,12 +288,12 @@ tell application "iTerm"
 
   tell current session of newWindow
     delay 0.5
-    set session3 to (split horizontally with profile "Lovelace")
+    set session3 to (split horizontally with profile "Default")
   end tell
 
   tell session2
     delay 0.5
-    set session4 to (split horizontally with profile "Default")
+    set session4 to (split horizontally with profile "MaterialDesignColors")
   end tell
 
   tell session3
