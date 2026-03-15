@@ -67,7 +67,7 @@ alias berf="bundle exec rspec --format=documentation --only-failures"
 alias berdiff="gd --name-only master HEAD spec/**/*spec.rb | xargs bundle exec rspec --format=documentation --profile 10"
 alias berc="bundle exec rails console"
 alias bers="bundle exec rails server"
-alias becop="bundle exec rubocop --parallel"
+alias becop="bundle exec rubocop app/ spec/ --force-exclusion"
 alias dcop="git diff --staged --name-only --diff-filter=d | grep -E '\.(rb|rake)$' | xargs bundle exec rubocop"
 
 
