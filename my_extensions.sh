@@ -176,8 +176,8 @@ function spinup_real () {
   local main_dir="$HOME/Projects/realhub" # adapt these lines to suit your own project directories
   local second_dir="$HOME/Projects/realhub-frontend" # adapt these lines to suit your own project directories
   local third_dir="$HOME/Projects/realhub-templates-frontend" # adapt these lines to suit your own project directories
-  local console_cmd="bash -l -c 'rails console'"
-  local server_cmd="bash -l -c 'APP_SERVER=puma rails server -p 3002'"
+  local console_cmd="bash -l -c 'bundle exec rails console'"
+  local server_cmd="bash -l -c 'APP_SERVER=puma ./bin/rails server -p 3002'"
   local sidekiq_cmd="bash -l -c 'bundle exec sidekiq'"
   local yarn_cmd="bash -l -c 'yarn start'"
 
