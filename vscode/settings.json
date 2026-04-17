@@ -69,7 +69,7 @@
   "html.format.templating": true,
   "html.format.maxPreserveNewLines": 1,
   "http.proxyAuthorization": null,
-  "diffEditor.ignoreTrimWhitespace": false,
+  "diffEditor.ignoreTrimWhitespace": true,
   "extensions.autoUpdate": false,
   "vsicons.dontShowNewVersionMessage": true,
   "explorer.confirmDragAndDrop": false,
