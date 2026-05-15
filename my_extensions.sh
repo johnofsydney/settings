@@ -24,7 +24,7 @@ alias l="lg"
 
 ##################################################
 ######            folder aliases            ######
-alias settings="cd ~/Projects/John/settings/"
+alias settings="cd ${SETTINGS_FOLDER}/"
 alias notes="cd ~/Projects/John/notes/"
 alias exercisms="cd ~/Projects/John/exercisms/"
 alias john="cd ~/Projects/John/"

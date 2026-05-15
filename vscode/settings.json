@@ -291,4 +291,5 @@
   "Invoke-Expression": false,
   "iex": false
 },
+"editor.unicodeHighlight.nonBasicASCII": false,
 }
