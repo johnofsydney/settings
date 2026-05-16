@@ -1,6 +1,7 @@
 echo
 echo Begining basic setup - apps install
 echo homebrew must be installed already!
+echo /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 echo git should be installed already, how else did you get this far?
 echo brew install git
 echo create an SSH key and add it to github https://docs.github.com/en/authentication/connecting-to-github-with-ssh
@@ -21,6 +22,7 @@ brew install bat              # a better cat
 brew install ag               # Silver Searcher; a faster grep
 brew install fzf              # fuzzy find, better terminal recall
 $(brew --prefix)/opt/fzf/install
+brew install coreutils        # GNU coreutils; use modern LS_COLORS
 
 #
 brew install --cask spotify

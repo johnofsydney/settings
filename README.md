@@ -1,45 +1,41 @@
 # settings
-This whole repo is about saving dotfiles for getting setup on a fresh install quickly and for maintaining a consistent environment between machines
+This whole repo is about getting setup on a fresh install quickly and for maintaining a consistent environment between machines
 
-## .zshrc
-Should look like this...
-```
+1. Download apps and utilities
+2. Configure Git
+3. Setup dot files
+4. Set up scriptable app preferences    
 
-source ~/Projects/John/settings/oh-my-zsh-config.sh
-source ~/Projects/John/settings/my_extensions.sh # above mac settings / os detector
-source ~/Projects/John/settings/mac_settings.sh
-source ~/Projects/John/settings/work_aliases.sh # lower down to override defaults (1) (2)
-source ~/Projects/John/settings/env_variables.sh (2)
+## 1. Doanload apps and utlities
+`$ ./setup_scripts/setup_001_install_apps.sh`
+Add new apps & utilities here if they are broadly applicable
+Script is idempotent
+
+## 2. Configure git
+Rather than remembering specific git config, just run the script 
+`$ ./setup_scripts/setup_002_configure_git.sh`
+
+## 3. Setup dotfiles including .zshrc
+`$ ./setup_scripts/setup_003_setup_dot_files.sh`
+zshrc remains the main orchestrator for all dot files
+script will write `source` commands to load in settings in
+- my_extensions.sh
+- mac_settings.sh
+- work_aliases.sh
+- env_variables.sh
+- prompt.sh
 
 ...
-And then any of the machine specific setup, eg PATH changes
-```
+machine specific setup, eg PATH changes are out of scope for this project - of course go ahead and make specific changes as needed to  zshrc
 
-(1) choose work or home as needed
-(2) should be gitignored
-
-## Sync Up OR Import application settings
-
-### For VS Code (standard and insiders editions)
-```
-ln -s /Users/john.coote/Projects/John/settings/vscode/keybindings.json /Users/john.coote/Library/Application\ Support/Code/User/keybindings.json
-ln -s /Users/john.coote/Projects/John/settings/vscode/settings.json /Users/john.coote/Library/Application\ Support/Code/User/settings.json
-ln -s /Users/john.coote/Projects/John/settings/vscode/settings.json /Users/john.coote/Library/Application\ Support/Code\ -\ Insiders/User/settings.json
-ln -s /Users/john.coote/Projects/John/settings/vscode/keybindings.json /Users/john.coote/Library/Application\ Support/Code\ -\ Insiders/User/keybindings.json
-```
-
-### For Oh-My-Zsh theme
-```
-ln -s ~/Projects/John/settings/john-candy-kingdom.zsh-theme ~/.oh-my-zsh/themes/john-candy-kingdom.zsh-theme
-```
+## 4. Setup app preferences
+`$ ./setup_scripts/setup_004_app_preferences.sh`
+- VS Code settings and keybindings live in plain old JSON files and can be symlinked  - which is scriptable
+- settings for iterm need to be imported via the iterm GUI (not scriptable)
+- settings for Rectangle need to be imported via the Rectangle GUI (not scriptable)
 
 ### For Rectangle
 In the App GUI, _Import Settings_ from this directory
 
 ### For iTerm
 In the App GUI, under General / Settings, choose _Load Settings from a custom folder or URL_ and select the preferences in `settings/iterm_preferences`
-
-### ZSH Theme
-```
-ln -s ~/Projects/John/settings/john-candy-kingdom.zsh-theme ~/.oh-my-zsh/themes/john-candy-kingdom.zsh-theme
-```

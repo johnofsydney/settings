@@ -18,8 +18,8 @@ export SAVEHIST=1000000000
 # export RUBYOPT='-W0' # suppress warnings
 ##################################################
 
-alias ls="ls -G"
-alias lg="ls -lah"
+alias ls="gls --color=auto" # gls is using GNU/linux version of ls from coreutils, which has better color support than the default mac version of ls.
+alias lg="gls -lah --color=auto" 
 alias l="lg"
 
 ##################################################
