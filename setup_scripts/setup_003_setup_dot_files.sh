@@ -25,13 +25,13 @@ echo "$SETTINGS_FOLDER/env_variables.sh" >> "$HOME/.gitignore_global"
 
 
 cat <<EOF >> ~/.zshrc
+export SETTINGS_FOLDER="$SETTINGS_FOLDER"
+
 source "$SETTINGS_FOLDER/my_extensions.sh" # above mac settings / os detector
 source "$SETTINGS_FOLDER/mac_settings.sh"
 source "$SETTINGS_FOLDER/work_aliases.sh"  # gitignored
 source "$SETTINGS_FOLDER/env_variables.sh" # gitignored
 source "$SETTINGS_FOLDER/prompt.sh"
-
-export SETTINGS_FOLDER="$SETTINGS_FOLDER"
 
 EOF
 

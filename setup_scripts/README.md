@@ -25,7 +25,7 @@ Strictly speaking this is an optional step - you can just download these files f
   - Consistent repeatable git config
   - add some files to global gitignore
 - 003 - Setup Dot Files
-  - create .zshrc if necessary
+  - create .zshrc if required
   - source all of the settings, alias, env_variable files
 - 004 - App Preferences
   - symlink VS Code settings and keybindings from repo into app folders
