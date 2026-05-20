@@ -1,7 +1,10 @@
 echo 'loading my_extensions.sh'
 
-PROMPT_COMMAND='history -a'
-# appends shell history to histoery on exit, rather than overwrite. maybe future improvements?
+# Append each command to $HISTFILE immediately, and share history across
+# concurrent shells. PROMPT_COMMAND is a bash construct and does nothing in zsh.
+setopt INC_APPEND_HISTORY
+setopt SHARE_HISTORY
+setopt HIST_IGNORE_DUPS
 
 
 ##################################################
@@ -19,7 +22,7 @@ export SAVEHIST=1000000000
 ##################################################
 
 alias ls="gls --color=auto" # gls is using GNU/linux version of ls from coreutils, which has better color support than the default mac version of ls.
-alias lg="gls -lah --color=auto" 
+alias lg="gls -lah --color=auto"
 alias l="lg"
 
 ##################################################
@@ -58,8 +61,7 @@ alias gl="git pull"
 alias rspec="nocorrect rspec"
 alias config="nocorrect config"
 alias be="bundle exec"
-alias bep="bundle exec rake parallel:load_schema && bundle exec parallel_rspec -o '--profile --tag ~blob_comparison'"
-alias bep-noskip="bundle exec rake parallel:load_schema && bundle exec parallel_rspec -o '--profile'"
+alias bep="bundle exec parallel_rspec"
 alias bepc="COVERAGE=true bep"
 alias ber="bundle exec rspec"
 alias berdoc="bundle exec rspec  --profile --format=documentation"
@@ -109,25 +111,6 @@ function hh () {
   fi
 }
 
-function chat () {
-  curl -s -X POST \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer ${CHAT_KEY}" \
-  -d '{"prompt": "'"$@"'", "max_tokens": 1000, "model": "text-davinci-003"}' https://api.openai.com/v1/completions\?format=json | \
-  jq ".choices[0].text" | \
-  sed 's/\\n/\n/g' | \
-  sed 's/"$//'
-}
-
-function goog () {
-  echo "Searching for : $@"
-  for term in $@ ; do
-      echo "$term"
-      search="$search%20$term"
-  done
-      open "http://www.google.com/search?q=$search"
-}
-
 function mkcd () { mkdir -p "$@" && cd "$@"; }
 
 function npj () {
@@ -135,8 +118,6 @@ function npj () {
   cd "$@"
   mkdir "js"
   mkdir "css"
-  cujq
-  cuus
   touch "index.html"
   touch "README.md"
   touch "js/main.js"
@@ -172,148 +153,6 @@ gch() {
 
 alias ch=gch
 
-function spinup_real () {
-  local main_dir="$HOME/Projects/realhub" # adapt these lines to suit your own project directories
-  local second_dir="$HOME/Projects/realhub-frontend" # adapt these lines to suit your own project directories
-  local third_dir="$HOME/Projects/realhub-templates-frontend" # adapt these lines to suit your own project directories
-  local console_cmd="bash -l -c 'bundle exec rails console'"
-  local server_cmd="bash -l -c 'APP_SERVER=puma ./bin/rails server -p 3002'"
-  local sidekiq_cmd="bash -l -c 'bundle exec sidekiq'"
-  local yarn_cmd="bash -l -c 'yarn start'"
-
-  echo "Spinning up real project..."
-  echo "Main directory: $main_dir"
-  echo "Second directory: $second_dir"
-
-  osascript <<EOF
-tell application "iTerm"
-  activate
-
-  -- Session 1: full width, console
-  set newWindow to (create window with profile "Default")
-  delay 0.5
-
-  tell current session of newWindow
-    write text "cd $main_dir"
-    write text "clear"
-    write text "$console_cmd"
-
-    delay 0.5
-    set session2 to (split horizontally with profile "Matrix")
-    delay 0.5
-    set session3 to (split horizontally with profile "MaterialDesignColors")
-  end tell
-
-  -- Session 2: half width, server
-  tell session2
-    write text "cd $main_dir"
-    write text "clear"
-    write text "$server_cmd"
-
-    delay 0.5
-    set session4 to (split vertically with profile "Matrix")
-  end tell
-
-  -- Session 3: half width, yarn start (new)
-  tell session3
-    write text "cd $main_dir"
-    write text "clear"
-    write text "$yarn_cmd"
-
-    delay 0.5
-    set session5 to (split vertically with profile "MaterialDesignColors")
-    delay 0.5
-    set session6 to (split vertically with profile "MaterialDesignColors")
-  end tell
-
-  -- Session 4: third width, sidekiq
-  tell session4
-    write text "cd $main_dir"
-    write text "clear"
-    write text "$sidekiq_cmd"
-  end tell
-
-  -- Session 5: third width, yarn_cmd
-  tell session5
-    write text "cd $second_dir"
-    write text "clear"
-    write text "$yarn_cmd"
-  end tell
-
-  -- Session 6: third width, yarn_cmd
-  tell session6
-    write text "cd $third_dir"
-    write text "clear"
-    write text "$yarn_cmd"
-  end tell
-end tell
-
-delay 0.5
-tell application "System Events"
-  key code 123 using {control down, option down}
-end tell
-EOF
-}
-
-function spinup_lester () {
-  local main_dir="$HOME/Projects/John/lester"
-  local console_cmd="bash -l -c 'rails console'"
-  local server_cmd="bash -l -c 'rails server -p 3000'"
-  local sidekiq_cmd="bash -l -c 'bundle exec sidekiq'"
-
-  echo "Spinning up lester project..."
-  echo "Main directory: $main_dir"
-
-  osascript <<EOF
-tell application "iTerm"
-  activate
-
-  set newWindow to (create window with profile "Matrix")
-  delay 0.5
-
-  tell current session of newWindow
-    write text "cd $main_dir"
-    write text "clear"
-    write text "$server_cmd"
-
-    delay 0.5
-    set session2 to (split vertically with profile "Matrix")
-  end tell
-
-  tell session2
-    write text "cd $main_dir"
-    write text "clear"
-    write text "$sidekiq_cmd"
-  end tell
-
-  tell current session of newWindow
-    delay 0.5
-    set session3 to (split horizontally with profile "Default")
-  end tell
-
-  tell session2
-    delay 0.5
-    set session4 to (split horizontally with profile "MaterialDesignColors")
-  end tell
-
-  tell session3
-    write text "cd $main_dir"
-    write text "clear"
-    write text "$console_cmd"
-  end tell
-
-  tell session4
-    write text "cd $main_dir"
-    write text "clear"
-  end tell
-end tell
-
-delay 0.5
-tell application "System Events"
-  key code 123 using {control down, option down}
-end tell
-EOF
-}
 
 function backup_local_db () {
   echo "Creating backup on local..."
@@ -324,7 +163,7 @@ function backup_local_db () {
 }
 
 function delete_finished_branches () {
-  git branch | sed 's/^[* ]*//' | grep -vE "^(main|staging)$" | while read branch; do
+  git branch | sed 's/^[* ]*//' | grep -vE "^(develop|main|staging)$" | while read branch; do
   echo "Local branch: $branch"
   git branch -D "$branch"
   # Check if branch exists on remote before trying to delete

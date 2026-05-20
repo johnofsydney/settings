@@ -34,5 +34,15 @@ parse_mise_ruby_version() {
   [ -n "$ruby_version" ] && echo "${CYAN_BOLD}ruby ${ruby_version}${RESET}"
 }
 
-PROMPT="${YELLOW_BOLD}%*${RESET} ${GREEN_BOLD}%~${RESET} \$(parse_git_branch_status) \$(parse_mise_ruby_version)
+parse_mise_node_version() {
+  # must be inside a project tracked by mise
+  command -v mise >/dev/null 2>&1 || return
+
+  local node_version
+  node_version=$(mise current 2>/dev/null | grep '^node' | awk '{print $2}')
+
+  [ -n "$node_version" ] && echo "${WHITE_BOLD}node ${node_version}${RESET}"
+}
+
+PROMPT="${YELLOW_BOLD}%*${RESET} ${GREEN_BOLD}%~${RESET} \$(parse_git_branch_status) \$(parse_mise_ruby_version) \$(parse_mise_node_version)
 $ "

@@ -1,7 +1,7 @@
 echo
 echo "Begin Setup App Preferences"
 echo "VS Code, VS Code Insiders (Need to have been opened previously)"
-echo "iTerm and Rectangle perferences need to beimported from the app itself."
+echo "iTerm and Rectangle perferences need to be imported from the app itself."
 echo
 
 code

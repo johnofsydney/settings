@@ -1,10 +1,21 @@
 echo
 echo Begining basic setup - apps install
-echo homebrew must be installed already!
-echo 'https://brew.sh/'
-echo git should be installed already, how else did you get this far?
-echo brew install git
-echo create an SSH key and add it to github https://docs.github.com/en/authentication/connecting-to-github-with-ssh
+echo
+
+# Pre-flight: brew and git must already exist. We do NOT auto-install either
+# — git is needed to clone this repo in the first place, and brew is treated
+# as a hand-installed prerequisite to keep the scripts simple and explicit.
+if ! command -v brew >/dev/null 2>&1; then
+  echo "ERROR: Homebrew is not installed. Install it from https://brew.sh/ and re-run." >&2
+  exit 1
+fi
+if ! command -v git >/dev/null 2>&1; then
+  echo "ERROR: git is not installed — you need it to have cloned this repo." >&2
+  exit 1
+fi
+
+echo "Reminder: create an SSH key and add it to GitHub if you haven't already:"
+echo "  https://docs.github.com/en/authentication/connecting-to-github-with-ssh"
 echo
 
 brew install iterm2      # standard terminal
