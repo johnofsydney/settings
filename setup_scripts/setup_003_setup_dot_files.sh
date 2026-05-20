@@ -34,6 +34,7 @@ export SETTINGS_FOLDER="$SETTINGS_FOLDER"
 source "$SETTINGS_FOLDER/my_extensions.sh" # above mac settings / os detector
 source "$SETTINGS_FOLDER/mac_settings.sh"
 source "$SETTINGS_FOLDER/work_aliases.sh"  # gitignored
+source "$SETTINGS_FOLDER/personal_aliases.sh"
 source "$SETTINGS_FOLDER/env_variables.sh" # gitignored
 source "$SETTINGS_FOLDER/prompt.sh"
 $ZSHRC_END_MARKER

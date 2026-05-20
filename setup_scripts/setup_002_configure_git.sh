@@ -7,8 +7,7 @@ read -p "Enter your email address Git Commits: " EMAIL
 
 touch "$HOME/.gitignore_global"
 
-brew install git # should really be installed already, but just in case, and also to get the latest version
-brew install git-recent
+# git + git-recent are installed in setup_001 — no need to re-install here.
 
 ############### git config setting ###############
 git config --global user.name "$FULL_NAME"

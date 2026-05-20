@@ -2,21 +2,22 @@ echo
 echo Begining basic setup - apps install
 echo
 
-# Pre-flight: brew and git must already exist. We do NOT auto-install either
-# — git is needed to clone this repo in the first place, and brew is treated
-# as a hand-installed prerequisite to keep the scripts simple and explicit.
+# Pre-flight: brew must exist. If you ran bootstrap.sh, it was installed there.
+# If you're running this script standalone without brew, install it first:
+#   https://brew.sh/
 if ! command -v brew >/dev/null 2>&1; then
-  echo "ERROR: Homebrew is not installed. Install it from https://brew.sh/ and re-run." >&2
-  exit 1
-fi
-if ! command -v git >/dev/null 2>&1; then
-  echo "ERROR: git is not installed — you need it to have cloned this repo." >&2
+  echo "ERROR: Homebrew is not installed. Run ./bootstrap.sh from the repo root, or install brew from https://brew.sh/ and re-run." >&2
   exit 1
 fi
 
 echo "Reminder: create an SSH key and add it to GitHub if you haven't already:"
 echo "  https://docs.github.com/en/authentication/connecting-to-github-with-ssh"
 echo
+
+# git first — setup_002 needs it to set global config, and the repo may have
+# been downloaded as a zip without git installed yet.
+brew install git
+brew install git-recent
 
 brew install iterm2      # standard terminal
 

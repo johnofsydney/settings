@@ -18,7 +18,6 @@ export HISTTIMEFORMAT="%d/%m/%y %T "
 export HISTFILE="$HOME/.zsh_history"
 export HISTSIZE=1000000000
 export SAVEHIST=1000000000
-# export RUBYOPT='-W0' # suppress warnings
 ##################################################
 
 alias ls="gls --color=auto" # gls is using GNU/linux version of ls from coreutils, which has better color support than the default mac version of ls.
@@ -28,10 +27,6 @@ alias l="lg"
 ##################################################
 ######            folder aliases            ######
 alias settings="cd ${SETTINGS_FOLDER}/"
-alias notes="cd ~/Projects/John/notes/"
-alias exercisms="cd ~/Projects/John/exercisms/"
-alias john="cd ~/Projects/John/"
-alias lester="cd ~/Projects/lester"
 ##################################################
 
 ###################################################
@@ -70,14 +65,7 @@ alias berdiff="gd --name-only master HEAD spec/**/*spec.rb | xargs bundle exec r
 alias berc="bundle exec rails console"
 alias bers="bundle exec rails server"
 alias becop="bundle exec rubocop app/ spec/ --force-exclusion"
-alias dcop="git diff --staged --name-only --diff-filter=d | grep -E '\.(rb|rake)$' | xargs bundle exec rubocop"
-
-
-##################################################
-######            ssh aliases            ######
-alias ssh_lester_db_server="ssh deploy@${LESTER_REMOTE_DB_HOST}"
-alias ssh_lester_app_server="ssh deploy@${LESTER_REMOTE_APP_HOST}"
-##################################################
+# alias dcop="git diff --staged --name-only --diff-filter=d | grep -E '\.(rb|rake)$' | xargs bundle exec rubocop"
 
 alias cc="code-insiders ."
 
@@ -95,7 +83,7 @@ alias xx="exit"
 export BAT_THEME="Dracula"
 alias readme="bat README.md"
 alias schema="bat db/schema.rb"
-alias weather="curl wttr.in"
+# alias weather="curl wttr.in"
 
 function gac () {
   git add .
@@ -113,19 +101,6 @@ function hh () {
 
 function mkcd () { mkdir -p "$@" && cd "$@"; }
 
-function npj () {
-  mkdir -p "$@"
-  cd "$@"
-  mkdir "js"
-  mkdir "css"
-  touch "index.html"
-  touch "README.md"
-  touch "js/main.js"
-  curl "https://code.jquery.com/jquery-3.3.1.js > js/jquery.js"
-  curl "https://raw.githubusercontent.com/jashkenas/underscore/master/underscore.js > js/underscore.js"
-  touch "css/main.css"
-}
-
 function runNested() {
   color=cyan
 
@@ -142,9 +117,8 @@ function runNested() {
 }
 
 function dcop () {
+  # really want to rewrite this to be more robust, but for now this is a quick way to run rubocop only on the staged files that haven't been deleted or renamed.
   git diff --name-status master | grep -v "^D\|^R" | grep ".rb" | awk '{print $2}' | xargs bundle exec rubocop
-  # gd main --name-only --diff-filter=d | grep -E '\.(rb|rake)$' | xargs bundle exec rubocop  --force-exclusion
-
 }
 
 gch() {

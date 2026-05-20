@@ -4,15 +4,16 @@ Personal dotfiles + Mac setup. Bootstrap a fresh Mac and keep multiple machines 
 
 ## Prerequisites
 
-These are NOT installed by any script — install them yourself first:
+The repo is designed to work even if it was downloaded as a zip rather than cloned —
+so neither Homebrew nor git needs to be installed beforehand:
 
-1. **Homebrew** — https://brew.sh/
-2. **git** — needed to clone this repo (`brew install git` if Xcode CLT git isn't enough)
-3. An **SSH key** added to GitHub if you want to push from this machine
-   (https://docs.github.com/en/authentication/connecting-to-github-with-ssh)
+- **Homebrew** is installed by `bootstrap.sh` if missing.
+- **git** is installed by `setup_001_install_apps.sh`.
+- An **SSH key** added to GitHub is still on you if you want to push from this machine
+  (https://docs.github.com/en/authentication/connecting-to-github-with-ssh).
 
-Then clone this repo wherever you like — `$SETTINGS_FOLDER` is resolved from the script
-location at runtime, so the clone path doesn't matter.
+`$SETTINGS_FOLDER` is resolved from the script location at runtime, so the repo path
+doesn't matter.
 
 ## Quick start
 
@@ -20,8 +21,8 @@ location at runtime, so the clone path doesn't matter.
 ./bootstrap.sh
 ```
 
-Runs all five setup scripts in order, prompting before each. Every script is idempotent,
-so it's safe to re-run.
+Installs Homebrew if missing, then runs all five setup scripts in order, prompting
+before each. Every script is idempotent, so it's safe to re-run.
 
 ## Running scripts individually
 
@@ -29,8 +30,9 @@ so it's safe to re-run.
 ```
 ./setup_scripts/setup_001_install_apps.sh
 ```
-- Brew-installs iTerm, browsers, VS Code (stable + Insiders), `bat`, `ag`, `fzf`,
-  GNU `coreutils`, `gnupg`, `blueutil`, Rectangle, Slack, Fork, etc.
+- Requires Homebrew (run `./bootstrap.sh` first if you don't have it).
+- Installs `git` + `git-recent` first, then iTerm, browsers, VS Code (stable + Insiders),
+  `bat`, `ag`, `fzf`, GNU `coreutils`, `gnupg`, `blueutil`, Rectangle, Slack, Fork, etc.
 - Prompts before installing the Microsoft Office casks.
 - Add new broadly-applicable apps here.
 

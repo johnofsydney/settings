@@ -6,9 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Personal dotfiles + Mac setup repo. Bootstrap a fresh Mac and keep multiple machines in sync. Not a library — there is no build, no tests. "Running" here means executing the numbered setup scripts on a clean machine, then opening a new shell.
 
-## Prerequisites (never auto-installed)
+## Prerequisites
 
-Homebrew and git must already be installed before any script runs. `setup_001` does a pre-flight `command -v` check and exits with an error if either is missing — it does **not** install them. The user wants this because git is needed to clone the repo in the first place, and brew is treated as a hand-installed prerequisite. Don't add a `curl …install.sh` step.
+The repo is designed to work even when downloaded as a zip (not cloned), so neither Homebrew nor git is treated as a hard prerequisite:
+
+- **Homebrew** — `bootstrap.sh` installs it if missing, via the official `https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh` script. It also persists `eval "$(brew shellenv)"` into `~/.zprofile` (fenced with `# >>> homebrew shellenv (bootstrap) >>>`) so future shells have brew on PATH.
+- **git** — installed by `setup_001_install_apps.sh` (first thing after the brew pre-flight check).
+
+`setup_001` still does a `command -v brew` pre-flight check so it fails fast if someone runs it standalone without ever running bootstrap. Don't change that to auto-install brew — that's bootstrap's job, not setup_001's.
+
+This is the *current* rule. Earlier iterations had brew and git as strict prerequisites; that's been relaxed.
 
 ## Setup script flow
 
@@ -18,8 +25,8 @@ Homebrew and git must already be installed before any script runs. `setup_001` d
 
 So re-running the bootstrap (or any single script) is safe.
 
-- `setup_001_install_apps.sh` — pre-flight check for brew/git, then `brew install` of apps + CLI utilities. Prompts before installing the Microsoft Office casks.
-- `setup_002_configure_git.sh` — prompts for name/email, then sets ~25 `git config --global` values. The repo treats this script as the source of truth for global git config — change it here rather than running ad-hoc `git config` commands.
+- `setup_001_install_apps.sh` — pre-flight check for brew, then installs `git` + `git-recent` first (so `setup_002` can run), then the rest of the apps + CLI utilities. Prompts before installing the Microsoft Office casks.
+- `setup_002_configure_git.sh` — prompts for name/email, then sets ~25 `git config --global` values. The repo treats this script as the source of truth for global git config — change it here rather than running ad-hoc `git config` commands. Does not install git itself anymore (that's setup_001's job).
 - `setup_003_setup_dot_files.sh` — the orchestrator. Resolves `$SETTINGS_FOLDER` from its own location (one level up from `setup_scripts/`), exports it, creates empty `work_aliases.sh` / `env_variables.sh`, then appends a fenced `source` block to `~/.zshrc` pointing back into this repo. Note: it does **not** modify `~/.gitignore_global` — that's purely the repo's `.gitignore` job now.
 - `setup_004_app_preferences.sh` — symlinks `vscode/settings.json` and `vscode/keybindings.json` into both VS Code and VS Code Insiders' `Application Support` folders. iTerm and Rectangle preferences must be imported through their GUIs (see README).
 - `setup_005_dev_stuff.sh` — installs `postgresql@16`, `redis`, and `mise`. Appends `mise activate` to `~/.zshrc` (fenced). Starts both services.
@@ -63,6 +70,6 @@ The exported preferences live in `rectangle_preferences/`. Older versions of thi
 
 - Shell scripts use `#!/usr/bin/env bash` or no shebang and rely on the user's shell; they're invoked explicitly (`./bootstrap.sh` or `./setup_scripts/...`) rather than via PATH.
 - `echo` banners at the top/bottom of each setup script are intentional — they're the user-visible progress for an otherwise quiet `brew install` run.
-- Idempotency convention: any append to `~/.zshrc` (or other long-lived dotfile) must be guarded by a fenced `# >>> ... >>>` / `# <<< ... <<<` marker pair and a `grep -qF` check. Both `setup_003` and `setup_005` follow this pattern.
-- Never auto-install Homebrew or git from a script — pre-flight check + clear error message only.
+- Idempotency convention: any append to `~/.zshrc` or `~/.zprofile` (or other long-lived dotfile) must be guarded by a fenced `# >>> ... >>>` / `# <<< ... <<<` marker pair and a `grep -qF` check. `bootstrap.sh` (brew shellenv → `~/.zprofile`), `setup_003` (settings sources → `~/.zshrc`), and `setup_005` (mise activate → `~/.zshrc`) all follow this pattern.
+- Auto-install policy: brew is installed by `bootstrap.sh` if missing; git is installed by `setup_001`. Don't move those installs around or add duplicate "install if missing" paths elsewhere.
 - Don't add real secrets to any committed file. Anything sensitive belongs in `env_variables.sh` (gitignored).
