@@ -2,10 +2,23 @@ echo
 echo Dev Stuff Setup Starting...
 echo
 
-# Pin major versions so a fresh machine doesn't get a surprise upgrade.
-# Bump these when you actually want to move; un-versioned `postgresql` no
-# longer resolves on current Homebrew.
-brew install postgresql@15
+# Pin major versions so a fresh machine doesn't get a surprise upgrade —
+# un-versioned `postgresql` no longer resolves on current Homebrew. Prompt
+# rather than hard-code so the answer matches whatever the project on this
+# machine actually needs. Press enter to accept the default; type `skip` to
+# skip Postgres entirely.
+DEFAULT_PG_VERSION=18
+read -p "PostgreSQL major version to install [${DEFAULT_PG_VERSION}, or 'skip']: " PG_VERSION
+PG_VERSION="${PG_VERSION:-$DEFAULT_PG_VERSION}"
+
+if [[ "$PG_VERSION" == "skip" ]]; then
+  echo "Skipping Postgres install."
+  PG_FORMULA=""
+else
+  PG_FORMULA="postgresql@${PG_VERSION}"
+  brew install "$PG_FORMULA"
+fi
+
 brew install redis
 
 brew install mise
@@ -24,7 +37,9 @@ $MISE_END_MARKER
 EOF
 fi
 
-brew services start postgresql@15
+if [[ -n "$PG_FORMULA" ]]; then
+  brew services start "$PG_FORMULA"
+fi
 brew services start redis
 
 echo
