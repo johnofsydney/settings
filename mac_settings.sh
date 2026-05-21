@@ -60,9 +60,4 @@ alias 91='open -g "rectangle://execute-action?name=bottom-left-ninth"'
 
 # setopt EXTENDED_HISTORY
 
-alias pxc_off="blueutil --disconnect 00-16-94-20-d2-9b && echo 'disconnected from pxc' || echo 'failed to disconnect from pxc'"
-alias pxc_on="blueutil --connect 00-16-94-20-d2-9b && echo 'connected to pxc' || echo 'failed to connect to pxc'"
-
-alias kvm_home="blueutil --connect 30-d9-d9-95-e7-27 && blueutil --connect 30-d9-d9-95-e7-27 && echo 'connected to kvm' || echo 'failed to connect to kvm'"
-
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh

@@ -28,3 +28,11 @@ function npj () {
   touch "css/main.css"
 }
 
+PXC_HEADPHONES="00-16-94-20-d2-9b"
+HOME_KEYBOARD="40-e6-4b-94-0b-b7"
+HOME_MOUSE="30-d9-d9-95-e7-27"
+
+alias pxc_off="blueutil --disconnect $PXC_HEADPHONES && echo 'disconnected from pxc' || echo 'failed to disconnect from pxc'"
+alias pxc_on="blueutil --connect $PXC_HEADPHONES && echo 'connected to pxc' || echo 'failed to connect to pxc'"
+
+alias connect_peripherals="blueutil --connect $HOME_MOUSE && blueutil --connect $HOME_KEYBOARD && echo 'connected to home periphals' || echo 'failed to connect to home periphals'"

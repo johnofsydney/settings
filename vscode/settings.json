@@ -126,7 +126,8 @@
   "[ruby]": {
     "editor.insertSpaces": true,
     "editor.tabSize": 2,
-    "editor.defaultFormatter": "rubocop.vscode-rubocop"
+    // "editor.defaultFormatter": "rubocop.vscode-rubocop",
+    "editor.defaultFormatter": "Shopify.ruby-lsp"
   },
   "[scss]": {
     "editor.insertSpaces": false,
@@ -294,4 +295,25 @@
 "editor.unicodeHighlight.nonBasicASCII": false,
 "gitlens.ai.model": "vscode",
 "gitlens.ai.vscode.model": "copilot:gpt-4.1",
+"rubyLsp.addonSettings": {
+},
+"rubyLsp.formatter": "standard",
+"rubyLsp.linters": [
+  "standard"
+],
+"rubyLsp.enabledFeatures": {
+  "codeActions": true,
+  "diagnostics": true,
+  "documentHighlights": true,
+  "documentLink": true,
+  "documentSymbols": true,
+  "foldingRanges": true,
+  "formatting": true,
+  "hover": true,
+  "inlayHint": true,
+  "onTypeFormatting": true,
+  "selectionRanges": true,
+  "semanticHighlighting": true,
+  "completion": true
+},
 }
