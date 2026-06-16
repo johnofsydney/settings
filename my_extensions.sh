@@ -35,13 +35,14 @@ alias ga="git add ."
 alias gst="git status"
 alias glog="git log --graph --all --pretty='format:%C(auto)%h %C(cyan)%ar %C(auto)%d %C(magenta)%an %C(auto)%s'"
 alias gc-="git checkout -"
-alias dev="git checkout develop && git fetch && git pull"
+alias dev="git checkout develop && git fetch --all && git pull"
 alias master="git checkout master && git fetch --all && git pull"
 alias main="git checkout main && git fetch --all && git pull"
 alias staging="git checkout staging && git fetch && git pull"
 alias qa="git checkout qa && git fetch && git pull"
-alias gcm="git checkout main"
+# alias gcm="git checkout main"
 alias gmm="git merge main"
+alias gmd="git merge develop"
 alias gcb="git checkout -b"
 
 alias recent="git recent -n 10"
@@ -56,12 +57,12 @@ alias gl="git pull"
 alias rspec="nocorrect rspec"
 alias config="nocorrect config"
 alias be="bundle exec"
-alias bep="bundle exec parallel_rspec"
+alias bep="bundle exec parallel_rspec --exclude-pattern spec/system"
 alias bepc="COVERAGE=true bep"
 alias ber="bundle exec rspec"
 alias berdoc="bundle exec rspec  --profile --format=documentation"
 alias berf="bundle exec rspec --format=documentation --only-failures"
-alias berdiff="gd --name-only master HEAD spec/**/*spec.rb | xargs bundle exec rspec --format=documentation --profile 10"
+alias berdiff="bundle exec rspec $(git diff --name-only develop...HEAD -- spec/ | grep '_spec\.rb$')"
 alias berc="bundle exec rails console"
 alias bers="bundle exec rails server"
 alias becop="bundle exec rubocop app/ spec/ --force-exclusion"
@@ -148,3 +149,5 @@ function delete_finished_branches () {
   fi
 done
 }
+
+source /opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh

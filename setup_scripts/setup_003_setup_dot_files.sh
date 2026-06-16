@@ -36,6 +36,8 @@ source "$SETTINGS_FOLDER/mac_settings.sh"
 source "$SETTINGS_FOLDER/work_aliases.sh"  # gitignored
 source "$SETTINGS_FOLDER/personal_aliases.sh"
 source "$SETTINGS_FOLDER/prompt.sh"
+
+source $HOMEBREW_PREFIX/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 $ZSHRC_END_MARKER
 
 EOF

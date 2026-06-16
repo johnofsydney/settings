@@ -37,6 +37,7 @@ $(brew --prefix)/opt/fzf/install
 brew install coreutils        # GNU coreutils; use modern LS_COLORS
 brew install gnupg
 brew install blueutil
+brew install zsh-syntax-highlighting
 
 #
 brew install --cask spotify
