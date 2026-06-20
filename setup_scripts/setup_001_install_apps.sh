@@ -38,6 +38,7 @@ brew install coreutils        # GNU coreutils; use modern LS_COLORS
 brew install gnupg
 brew install blueutil
 brew install zsh-syntax-highlighting
+brew install node
 
 #
 brew install --cask spotify
