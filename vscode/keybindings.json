@@ -58,5 +58,14 @@
     {
       "key": "cmd+k cmd+p",
       "command": "codesnap.start"
+    },
+    {
+      "key": "ctrl+shift+cmd+d",
+      "command": "workbench.view.debug",
+      "when": "viewContainer.workbench.view.debug.enabled"
+    },
+    {
+      "key": "shift+cmd+d",
+      "command": "editor.action.duplicateSelection"
     }
 ]
