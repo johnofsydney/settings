@@ -41,6 +41,7 @@ brew install zsh-syntax-highlighting
 brew install gh               # GitHub CLI, for interacting with GitHub from the terminal
 brew install tree
 brew install --cask obsidian
+brew install node
 
 #
 brew install --cask spotify
