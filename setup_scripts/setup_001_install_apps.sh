@@ -38,6 +38,9 @@ brew install coreutils        # GNU coreutils; use modern LS_COLORS
 brew install gnupg
 brew install blueutil
 brew install zsh-syntax-highlighting
+brew install gh               # GitHub CLI, for interacting with GitHub from the terminal
+brew install tree
+brew install --cask obsidian
 
 #
 brew install --cask spotify
