@@ -17,7 +17,7 @@
 
     "source.fixAll.eslint": "explicit"
   },
-  "workbench.colorTheme": "Atom One Light",
+  "workbench.colorTheme": "Atom One Cyan Light",
   "workbench.sideBar.location": "left",
   "workbench.startupEditor": "newUntitledFile",
   "window.zoomLevel": 1,
