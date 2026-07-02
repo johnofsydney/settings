@@ -14,6 +14,10 @@ export EDITOR="code --wait"
 
 export GIT_MERGE_AUTOEDIT=no
 
+# Put this repo's bin/ on PATH so its scripts (e.g. `worktree`) are callable
+# from any directory. $SETTINGS_FOLDER is exported by ~/.zshrc (see setup_003).
+export PATH="$SETTINGS_FOLDER/bin:$PATH"
+
 export HISTTIMEFORMAT="%d/%m/%y %T "
 export HISTFILE="$HOME/.zsh_history"
 export HISTSIZE=1000000000

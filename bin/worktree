@@ -1,0 +1,173 @@
+#!/usr/bin/env bash
+#
+# worktree — spin up / tear down isolated per-ticket git worktrees.
+#
+# Project-agnostic: run it from inside any git repo. It derives the repo name
+# from the current toplevel, so a repo "foo" gets worktrees at ../foo-<slug>
+# with databases foo_<slug>.
+#
+# Each worktree gets:
+#   - its own directory (sibling of the repo) on its own branch
+#   - its own node_modules (yarn install) — skipped if no package.json
+#   - its own database (<repo>_<slug>) via bin/rails db:prepare — skipped if no bin/rails
+#   - a per-worktree .env pinning PORT + the DB env var (dotenv-rails picks the
+#     DB up automatically for every rails command in that worktree)
+#   - an auto-picked free PORT base
+#
+# Config (override via env before calling, or a per-repo defaults block):
+#   WORKTREE_DB_ENV_VAR   env var your database.yml reads   (default: DEV_DATABASE_NAME)
+#   WORKTREE_RUN_CMD      command to start the dev stack    (default: bin/dev)
+#   WORKTREE_BASE_BRANCH  branch new work forks from        (default: auto-detected)
+#
+# Base-branch resolution (when not passed as an arg): WORKTREE_BASE_BRANCH,
+# else develop if it exists, else origin's default branch (origin/HEAD),
+# else main/master.
+#
+# Usage:
+#   worktree new <name> [port] [base-branch]   # create + set up   (base-branch default: auto-detected)
+#   worktree ls                                # list worktrees + port/db
+#   worktree rm <name>                         # stop stack, remove worktree + branch + drop db
+#
+set -euo pipefail
+
+MAIN="$(git rev-parse --show-toplevel)"
+PARENT="$(dirname "$MAIN")"
+REPO_NAME="$(basename "$MAIN")"
+DB_ENV_VAR="${WORKTREE_DB_ENV_VAR:-DEV_DATABASE_NAME}"
+RUN_CMD="${WORKTREE_RUN_CMD:-bin/dev}"
+CANDIDATE_PORTS=(4000 5000 6000 7000 8000 9000)
+
+slugify() { echo "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g'; }
+
+# True if <branch> exists locally or on origin.
+branch_exists() {
+  git show-ref --verify --quiet "refs/heads/$1" ||
+    git show-ref --verify --quiet "refs/remotes/origin/$1"
+}
+
+# Pick the branch new work should fork from, in priority order:
+#   1. WORKTREE_BASE_BRANCH override  2. develop (if it exists)
+#   3. origin's default branch (origin/HEAD)  4. main / master
+# Call after `git fetch` so remote refs are current.
+resolve_base() {
+  if [ -n "${WORKTREE_BASE_BRANCH:-}" ]; then echo "$WORKTREE_BASE_BRANCH"; return; fi
+  branch_exists develop && { echo develop; return; }
+  local head
+  head="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')"
+  [ -n "$head" ] && { echo "$head"; return; }
+  for b in main master; do branch_exists "$b" && { echo "$b"; return; }; done
+  echo develop   # nothing matched; let the downstream git error surface
+}
+
+# Ports already pinned by existing worktrees' .env files.
+used_ports() {
+  git worktree list --porcelain | awk '/^worktree /{print $2}' | while read -r wt; do
+    [ -f "$wt/.env" ] && grep -E '^PORT=' "$wt/.env" | cut -d= -f2
+  done
+}
+
+pick_port() {
+  local used; used="$(used_ports)"
+  for p in "${CANDIDATE_PORTS[@]}"; do
+    if ! echo "$used" | grep -qx "$p" && ! lsof -nP -i ":$p" >/dev/null 2>&1; then
+      echo "$p"; return 0
+    fi
+  done
+  echo "ERROR: no free candidate port" >&2; return 1
+}
+
+# md5 of a path -> matches bin/dev's overmind socket hashing, so we can stop a stack.
+overmind_socket_for() { echo "/tmp/overmind-$(echo "$1" | md5 | cut -c1-8).sock"; }
+
+cmd_new() {
+  local name="${1:?usage: worktree new <name> [port] [base-branch]}"
+  local slug; slug="$(slugify "$name")"
+  local dir="$PARENT/${REPO_NAME}-$slug"
+  local db="${REPO_NAME}_${slug//-/_}"
+  local port="${2:-$(pick_port)}"
+
+  # Refresh remote-tracking refs so an existing origin branch is detected
+  # (tolerant: don't fail the command if offline or there's no origin).
+  echo "▶ fetching origin..."
+  git fetch --quiet origin 2>/dev/null || true
+
+  # Resolve after the fetch so origin/HEAD and remote branches are current.
+  local base="${3:-$(resolve_base)}"
+
+  echo "▶ worktree : $dir"
+  echo "▶ branch   : $name (from $base)"
+  echo "▶ database : $db  (via \$$DB_ENV_VAR)"
+  echo "▶ port     : $port"
+
+  if git show-ref --verify --quiet "refs/heads/$name"; then
+    # Existing local branch — check it out (base-branch arg is ignored).
+    echo "▶ using existing local branch"
+    git worktree add "$dir" "$name"
+  elif git show-ref --verify --quiet "refs/remotes/origin/$name"; then
+    # Exists on origin but not locally — create a local tracking branch.
+    echo "▶ tracking existing origin/$name"
+    git worktree add "$dir" -b "$name" --track "origin/$name"
+  else
+    # Brand new branch off the base.
+    echo "▶ creating new branch from $base"
+    git worktree add -b "$name" "$dir" "$base"
+  fi
+
+  { echo "PORT=$port"; echo "$DB_ENV_VAR=$db"; } > "$dir/.env"
+
+  if [ -f "$dir/package.json" ]; then
+    echo "▶ yarn install..."
+    ( cd "$dir" && yarn install >/dev/null 2>&1 )
+  fi
+
+  if [ -x "$dir/bin/rails" ]; then
+    echo "▶ db:prepare ($db)..."
+    ( cd "$dir" && env "$DB_ENV_VAR=$db" bin/rails db:prepare >/dev/null )
+  fi
+
+  echo ""
+  echo "✅ Ready. Start it with:"
+  echo "     cd $dir && PORT=$port $RUN_CMD"
+  echo "   (DB '$db' is automatic via .env; app on http://localhost:$port)"
+}
+
+cmd_ls() {
+  git worktree list --porcelain | awk '/^worktree /{print $2}' | while read -r wt; do
+    port="-"; db="-"
+    if [ -f "$wt/.env" ]; then
+      port="$(grep -E '^PORT=' "$wt/.env" | cut -d= -f2 || echo -)"
+      db="$(grep -E "^${DB_ENV_VAR}=" "$wt/.env" | cut -d= -f2 || echo -)"
+    fi
+    printf "%-50s port=%-6s db=%s\n" "$wt" "${port:--}" "${db:--}"
+  done
+}
+
+cmd_rm() {
+  local name="${1:?usage: worktree rm <name>}"
+  local slug; slug="$(slugify "$name")"
+  local dir="$PARENT/${REPO_NAME}-$slug"
+  local db="${REPO_NAME}_${slug//-/_}"
+
+  if [ -d "$dir" ]; then
+    echo "▶ stopping stack (if running)..."
+    OVERMIND_SOCKET="$(overmind_socket_for "$dir")" overmind quit 2>/dev/null || true
+    sleep 1
+    if [ -x "$dir/bin/rails" ]; then
+      echo "▶ dropping database $db..."
+      ( cd "$dir" && env "$DB_ENV_VAR=$db" bin/rails db:drop >/dev/null 2>&1 ) || echo "  (db drop skipped/failed - drop manually)"
+    fi
+    echo "▶ removing worktree..."
+    git worktree remove "$dir" --force
+  else
+    echo "  (no dir at $dir; pruning)"; git worktree prune
+  fi
+  git branch -D "$name" 2>/dev/null || true
+  echo "✅ removed worktree, branch, and db for '$name'"
+}
+
+case "${1:-}" in
+  new) shift; cmd_new "$@" ;;
+  ls)  cmd_ls ;;
+  rm)  shift; cmd_rm "$@" ;;
+  *)   sed -n '3,30p' "$0"; exit 1 ;;
+esac
