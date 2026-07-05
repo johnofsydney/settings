@@ -46,6 +46,8 @@ alias gmd="git merge develop"
 alias gcb="git checkout -b"
 
 alias recent="git recent -n 10"
+alias git_delete_completed_local_branches="git branch --merged main | grep -v '^\*\|main\|staging' | xargs git branch -d"
+
 alias gp="git push"
 alias gd="git diff"
 alias gl="git pull"
@@ -137,17 +139,5 @@ function backup_local_db () {
   pg_dump -h localhost -U postgres -d $db_name > tmp/db_backup_$(basename $PWD)_$(date +%Y%m%d_%H%M%S).sql
 }
 
-function delete_finished_branches () {
-  git branch | sed 's/^[* ]*//' | grep -vE "^(develop|main|staging)$" | while read branch; do
-  echo "Local branch: $branch"
-  git branch -D "$branch"
-  # Check if branch exists on remote before trying to delete
-  if git ls-remote --heads origin "$branch" | grep -q "$branch"; then
-    git push origin --delete "$branch"
-  else
-    echo "Branch '$branch' does not exist on remote, skipping remote deletion"
-  fi
-done
-}
 
 source /opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
