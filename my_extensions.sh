@@ -86,7 +86,9 @@ alias becop="bundle exec rubocop app/ spec/ --force-exclusion"
 
 alias cc="code-insiders ."
 
-# python3 aliases
+# python/pip: there's no bare `python` on modern macOS, so these just point at
+# python3/pip3. Safe today because mise doesn't manage Python here — REMOVE them
+# if you ever run `mise use python@X`, or they'll shadow mise's python shim.
 alias python=python3
 alias pip=pip3
 
