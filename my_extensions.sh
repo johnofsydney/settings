@@ -154,4 +154,8 @@ function delete_finished_branches () {
 done
 }
 
-source /opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+# zsh-syntax-highlighting (brew formula, installed by setup_001). $HOMEBREW_PREFIX
+# is set by `brew shellenv` in ~/.zprofile; fall back to the Apple-silicon default
+# so this also works on Intel. Guarded so a missing plugin doesn't error every shell.
+ZSH_SYNTAX_HL="${HOMEBREW_PREFIX:-/opt/homebrew}/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+[ -f "$ZSH_SYNTAX_HL" ] && source "$ZSH_SYNTAX_HL"
