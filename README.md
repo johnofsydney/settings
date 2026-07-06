@@ -78,6 +78,6 @@ a custom folder or URL_ and select `iterm_preferences/`.
 ```
 ./setup_scripts/setup_005_dev_stuff.sh
 ```
-- Brew-installs `postgresql@16`, `redis`, `mise`.
+- Prompts for a PostgreSQL major version (default `18`, or `skip`), then brew-installs `postgresql@<version>`, `redis`, `mise`.
 - Appends `mise activate` to `~/.zshrc` (fenced, so re-runs don't duplicate).
 - Starts the Postgres and Redis services.

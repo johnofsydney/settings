@@ -29,7 +29,7 @@ So re-running the bootstrap (or any single script) is safe.
 - `setup_002_configure_git.sh` — prompts for name/email, then sets ~25 `git config --global` values. The repo treats this script as the source of truth for global git config — change it here rather than running ad-hoc `git config` commands. Does not install git itself anymore (that's setup_001's job).
 - `setup_003_setup_dot_files.sh` — the orchestrator. Resolves `$SETTINGS_FOLDER` from its own location (one level up from `setup_scripts/`), exports it, creates empty `work_aliases.sh` / `env_variables.sh`, then appends a fenced `source` block to `~/.zshrc` pointing back into this repo. Note: it does **not** modify `~/.gitignore_global` — that's purely the repo's `.gitignore` job now.
 - `setup_004_app_preferences.sh` — symlinks `vscode/settings.json` and `vscode/keybindings.json` into both VS Code and VS Code Insiders' `Application Support` folders. iTerm and Rectangle preferences must be imported through their GUIs (see README).
-- `setup_005_dev_stuff.sh` — installs `postgresql@16`, `redis`, and `mise`. Appends `mise activate` to `~/.zshrc` (fenced). Starts both services.
+- `setup_005_dev_stuff.sh` — prompts for a PostgreSQL major version (default `18`; enter `skip` to skip Postgres entirely), then installs `postgresql@<version>`, `redis`, and `mise`. Appends `mise activate` to `~/.zshrc` (fenced). Starts both services.
 
 ## Runtime architecture: how a shell session loads
 
