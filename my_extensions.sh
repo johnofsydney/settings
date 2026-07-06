@@ -142,16 +142,28 @@ function backup_local_db () {
 }
 
 function delete_finished_branches () {
-  git branch | sed 's/^[* ]*//' | grep -vE "^(develop|main|staging)$" | while read branch; do
-  echo "Local branch: $branch"
-  git branch -D "$branch"
-  # Check if branch exists on remote before trying to delete
-  if git ls-remote --heads origin "$branch" | grep -q "$branch"; then
-    git push origin --delete "$branch"
-  else
-    echo "Branch '$branch' does not exist on remote, skipping remote deletion"
-  fi
-done
+  # Delete local branches (and their matching origin branch), EXCEPT the
+  # protected mainlines and the branch you're currently on. Uses -D, so it also
+  # removes branches git can't see as merged (e.g. squash-merged PRs) — that's
+  # the common case. Edit `protected` to match your team's long-lived branches.
+  local protected="develop|main|master|staging|qa"
+  local current
+  current="$(git symbolic-ref --quiet --short HEAD)" || {
+    echo "Detached HEAD (not on a branch) — aborting."; return 1
+  }
+
+  git branch --format='%(refname:short)' \
+    | grep -vE "^(${protected})$" \
+    | grep -vxF "$current" \
+    | while read -r branch; do
+        echo "Deleting local branch: $branch"
+        git branch -D "$branch"
+        if git ls-remote --heads origin "$branch" | grep -q .; then
+          git push origin --delete "$branch"
+        else
+          echo "  (no remote branch '$branch' — skipping remote deletion)"
+        fi
+      done
 }
 
 # zsh-syntax-highlighting (brew formula, installed by setup_001). $HOMEBREW_PREFIX
