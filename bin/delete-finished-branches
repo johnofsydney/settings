@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+#
+# delete-finished-branches — delete local branches (and their matching origin
+# branch), EXCEPT the protected mainlines and the branch you're currently on.
+#
+# Uses `git branch -D`, so it also removes branches git can't see as merged
+# (e.g. squash-merged PRs) — the common case. Project-agnostic; run from any
+# git repo. A single branch that fails to delete is reported and skipped rather
+# than aborting the whole run.
+#
+# Config (override via env):
+#   PROTECTED_BRANCHES   pipe-separated regex of branches to keep
+#                        (default: develop|main|master|staging|qa)
+#
+# Usage:
+#   delete-finished-branches
+#
+set -euo pipefail
+
+protected="${PROTECTED_BRANCHES:-develop|main|master|staging|qa}"
+
+current="$(git symbolic-ref --quiet --short HEAD)" || {
+  echo "Detached HEAD (not on a branch) — aborting." >&2
+  exit 1
+}
+
+# `|| true`: grep exits 1 when everything is filtered out (nothing to delete),
+# which would otherwise abort under `set -e`.
+branches="$(git branch --format='%(refname:short)' \
+  | grep -vE "^(${protected})$" \
+  | grep -vxF "$current" || true)"
+
+if [ -z "$branches" ]; then
+  echo "No finished branches to delete."
+  exit 0
+fi
+
+echo "$branches" | while read -r branch; do
+  echo "Deleting local branch: $branch"
+  git branch -D "$branch" || { echo "  (could not delete local '$branch' — skipping)"; continue; }
+  if git ls-remote --heads origin "$branch" 2>/dev/null | grep -q .; then
+    git push origin --delete "$branch" || echo "  (could not delete remote '$branch')"
+  else
+    echo "  (no remote branch '$branch' — skipping remote deletion)"
+  fi
+done

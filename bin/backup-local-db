@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+#
+# backup-local-db — dump the local development database to tmp/.
+#
+# Derives the db name from the current directory: <dir>_development (the default
+# Rails development-database naming). Writes a timestamped .sql dump into tmp/
+# (created if missing). Assumes a local Postgres reachable as the `postgres`
+# role on localhost. Run from the project root.
+#
+# Usage:
+#   backup-local-db            # db = <current-dir>_development
+#   backup-local-db <db_name>  # explicit database name
+#
+set -euo pipefail
+
+repo="$(basename "$PWD")"
+db_name="${1:-${repo}_development}"
+
+mkdir -p tmp
+out="tmp/db_backup_${repo}_$(date +%Y%m%d_%H%M%S).sql"
+
+echo "Backing up '$db_name' -> $out ..."
+pg_dump -h localhost -U postgres -d "$db_name" > "$out"
+echo "✅ done"

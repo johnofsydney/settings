@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+#
+# dcop — run rubocop on the Ruby files changed on this branch vs its base branch.
+#
+# Skips deleted/renamed files. Base branch is auto-detected (mirrors `worktree`):
+# develop, else origin's default branch (origin/HEAD), else main/master. Does
+# nothing if no Ruby files changed. Run from inside a Ruby project's git repo.
+#
+# Usage:
+#   dcop            # base auto-detected
+#   dcop <base>     # diff against an explicit base branch
+#
+set -euo pipefail
+
+# Pick the branch to diff against, in priority order:
+#   1. develop  2. origin's default branch  3. main / master  4. master fallback
+resolve_base() {
+  if git show-ref --verify --quiet refs/heads/develop; then
+    echo develop; return
+  fi
+  local head
+  head="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')"
+  if [ -n "$head" ]; then echo "$head"; return; fi
+  for b in main master; do
+    git show-ref --verify --quiet "refs/heads/$b" && { echo "$b"; return; }
+  done
+  echo master
+}
+
+base="${1:-$(resolve_base)}"
+
+# `|| true`: grep exits 1 when nothing matches, which would abort under `set -e`.
+files="$(git diff --name-status "$base" | grep -vE '^[DR]' | awk '{print $2}' | grep -E '\.rb$' || true)"
+
+if [ -z "$files" ]; then
+  echo "dcop: no changed Ruby files vs $base"
+  exit 0
+fi
+
+echo "$files" | xargs bundle exec rubocop
