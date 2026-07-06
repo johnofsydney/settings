@@ -106,21 +106,6 @@ function hh () {
 
 function mkcd () { mkdir -p "$1" && cd "$1"; }
 
-function runNested() {
-  color=cyan
-
-  for d in ./*/
-    do /bin/zsh -c "
-    (
-      cd "$d" &&
-      print -P "%F{$color}$d%f" &&
-      "$@"
-      echo '\n'
-      )
-    "
-  done
-}
-
 function dcop () {
   # Run rubocop on the Ruby files changed on this branch vs its base branch,
   # skipping deleted/renamed files. Base is auto-detected (mirrors `worktree`):
