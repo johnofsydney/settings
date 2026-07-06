@@ -39,11 +39,23 @@ alias ga="git add ."
 alias gst="git status"
 alias glog="git log --graph --all --pretty='format:%C(auto)%h %C(cyan)%ar %C(auto)%d %C(magenta)%an %C(auto)%s'"
 alias gc-="git checkout -"
-alias dev="git checkout develop && git fetch --all && git pull"
-alias master="git checkout master && git fetch --all && git pull"
-alias main="git checkout main && git fetch --all && git pull"
-alias staging="git checkout staging && git fetch && git pull"
-alias qa="git checkout qa && git fetch && git pull"
+
+# Check out a branch and sync it with origin. Refuses on a dirty tree so you
+# never drag uncommitted work onto another branch by accident (a dirty tree is
+# exactly when you don't want an auto-pull). The dev/main/master/... aliases
+# below all delegate to this.
+gsync() {
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "gsync: not a git repo"; return 1; }
+  git diff --quiet && git diff --cached --quiet || {
+    echo "gsync: working tree is dirty — commit or stash first"; return 1
+  }
+  git checkout "$1" && git fetch --all && git pull
+}
+alias dev="gsync develop"
+alias master="gsync master"
+alias main="gsync main"
+alias staging="gsync staging"
+alias qa="gsync qa"
 # alias gcm="git checkout main"
 alias gmm="git merge main"
 alias gmd="git merge develop"
