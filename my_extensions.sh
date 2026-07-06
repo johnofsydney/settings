@@ -122,8 +122,30 @@ function runNested() {
 }
 
 function dcop () {
-  # really want to rewrite this to be more robust, but for now this is a quick way to run rubocop only on the staged files that haven't been deleted or renamed.
-  git diff --name-status master | grep -v "^D\|^R" | grep ".rb" | awk '{print $2}' | xargs bundle exec rubocop
+  # Run rubocop on the Ruby files changed on this branch vs its base branch,
+  # skipping deleted/renamed files. Base is auto-detected (mirrors `worktree`):
+  # develop, else origin's default branch, else main/master. Does nothing if no
+  # Ruby files changed.
+  local base
+  if git show-ref --verify --quiet refs/heads/develop; then
+    base=develop
+  else
+    base="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')"
+    if [ -z "$base" ]; then
+      for b in main master; do
+        git show-ref --verify --quiet "refs/heads/$b" && { base=$b; break; }
+      done
+    fi
+  fi
+  : "${base:=master}"
+
+  local files
+  files=$(git diff --name-status "$base" | grep -vE '^[DR]' | awk '{print $2}' | grep -E '\.rb$')
+  if [ -z "$files" ]; then
+    echo "dcop: no changed Ruby files vs $base"
+    return 0
+  fi
+  echo "$files" | xargs bundle exec rubocop
 }
 
 gch() {
