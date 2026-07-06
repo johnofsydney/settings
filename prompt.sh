@@ -13,36 +13,39 @@ WHITE_BOLD=$'%{\x1b[1;37m%}'
 RESET=$'%{\x1b[0m%}'
 
 parse_git_branch_status() {
-  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return
+  # One `git status --porcelain --branch` call yields both the branch name and
+  # the dirty/clean state — the old prompt spent three git invocations per line.
+  local out branch
+  out=$(git status --porcelain --branch 2>/dev/null) || return  # not a git repo
 
-  local branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+  branch=${out%%$'\n'*}   # line 1: "## <branch>...<upstream> [ahead/behind]"
+  branch=${branch#\#\# }  # strip leading "## "
+  branch=${branch%%...*}  # strip "...upstream" and anything after it
+  branch=${branch%% *}    # strip " [ahead N]" when there's no upstream marker
 
-  if git status --porcelain 2>/dev/null | grep -q .; then
+  # Dirty when there's any porcelain entry beyond the "## ..." header line.
+  if [[ "$out" == *$'\n'* ]]; then
     echo "${MAGENTA_BOLD}${branch} ${RED_BOLD}DIRTY 💀 💩 😭${RESET}"
   else
     echo "${MAGENTA_BOLD}${branch} ${GREEN_BOLD}CLEAN 🙂 🌈 🦄${RESET}"
   fi
 }
 
-parse_mise_ruby_version() {
-  # must be inside a project tracked by mise
+parse_mise_versions() {
+  # Single `mise current` call renders both ruby and node. mise startup is the
+  # expensive part, so the old prompt (one call per language) paid it twice.
   command -v mise >/dev/null 2>&1 || return
 
-  local ruby_version
-  ruby_version=$(mise current 2>/dev/null | grep '^ruby' | awk '{print $2}')
-
-  [ -n "$ruby_version" ] && echo "${CYAN_BOLD}ruby ${ruby_version}${RESET}"
+  mise current 2>/dev/null | awk \
+    -v c="$CYAN_BOLD" -v w="$WHITE_BOLD" -v r="$RESET" '
+      $1=="ruby"{ruby=$2} $1=="node"{node=$2}
+      END {
+        s=""
+        if (ruby != "") s = s c "ruby " ruby r " "
+        if (node != "") s = s w "node " node r
+        print s
+      }'
 }
 
-parse_mise_node_version() {
-  # must be inside a project tracked by mise
-  command -v mise >/dev/null 2>&1 || return
-
-  local node_version
-  node_version=$(mise current 2>/dev/null | grep '^node' | awk '{print $2}')
-
-  [ -n "$node_version" ] && echo "${WHITE_BOLD}node ${node_version}${RESET}"
-}
-
-PROMPT="${YELLOW_BOLD}%*${RESET} ${GREEN_BOLD}%~${RESET} \$(parse_git_branch_status) \$(parse_mise_ruby_version) \$(parse_mise_node_version)
+PROMPT="${YELLOW_BOLD}%*${RESET} ${GREEN_BOLD}%~${RESET} \$(parse_git_branch_status) \$(parse_mise_versions)
 $ "
