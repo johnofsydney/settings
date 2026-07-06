@@ -1,5 +1,10 @@
 echo 'loading mac_settings.sh'
 
+# macOS-only. Bail early on other platforms so ~/.zshrc can source this
+# unconditionally (see setup_003). Everything below assumes blueutil, Rectangle,
+# and `open -g`, which only exist on a Mac. `return` works because we're sourced.
+[[ "$OSTYPE" == darwin* ]] || return
+
 # this fixes the annoying behaviour around correcting the "rspec" in "$ bundle exec rspec"
 # https://superuser.com/questions/439209/how-to-partially-disable-the-zshs-autocorrect
 # it doesn't work on linux
