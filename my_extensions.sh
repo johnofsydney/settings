@@ -104,7 +104,7 @@ function hh () {
   fi
 }
 
-function mkcd () { mkdir -p "$@" && cd "$@"; }
+function mkcd () { mkdir -p "$1" && cd "$1"; }
 
 function runNested() {
   color=cyan
