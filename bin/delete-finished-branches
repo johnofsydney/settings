@@ -10,14 +10,14 @@
 #
 # Config (override via env):
 #   PROTECTED_BRANCHES   pipe-separated regex of branches to keep
-#                        (default: develop|main|master|staging|qa)
+#                        (default: main|master|staging|qa)
 #
 # Usage:
 #   delete-finished-branches
 #
 set -euo pipefail
 
-protected="${PROTECTED_BRANCHES:-develop|main|master|staging|qa}"
+protected="${PROTECTED_BRANCHES:-main|master|staging|qa}"
 
 current="$(git symbolic-ref --quiet --short HEAD)" || {
   echo "Detached HEAD (not on a branch) — aborting." >&2

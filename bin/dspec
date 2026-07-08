@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+#
+# dspec — run rspec on the specs affected by changes on this branch.
+#
+# "Affected" = the union of:
+#   - changed spec files themselves (spec/**/*_spec.rb)
+#   - the spec that covers each changed source file:
+#       app/models/comment.rb   -> spec/models/comment_spec.rb
+#       lib/foo/bar.rb          -> spec/lib/foo/bar_spec.rb
+#
+# "Changed" is measured from the branch's fork point — `git merge-base <base>
+# HEAD` — so it captures every commit on this branch *plus* uncommitted work,
+# and ignores commits that have landed on the base since you branched. Base is
+# auto-detected (mirrors `dcop`/`worktree`): origin's default branch
+# (origin/HEAD), else main/master.
+#
+# System specs (spec/system/**) are always excluded — they trigger asset
+# precompilation and are slow. Prints the spec list before running.
+#
+# Runs with rspec's documentation format. Specs that don't exist on disk are
+# dropped (rspec errors on a missing file), and deleted/renamed sources are
+# skipped. Does nothing if nothing is affected. Run from a Ruby project's git repo.
+#
+# Usage:
+#   dspec                # base auto-detected, then whatever rspec args you like
+#   dspec <base>         # diff against an explicit base branch
+#   dspec [base] -- ...  # pass extra flags through to rspec
+#
+set -euo pipefail
+
+# Pick the branch to diff against, in priority order:
+#   1. origin's default branch (origin/HEAD)  2. main / master  3. master fallback
+resolve_base() {
+  local head
+  head="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')"
+  if [ -n "$head" ]; then echo "$head"; return; fi
+  for b in main master; do
+    git show-ref --verify --quiet "refs/heads/$b" && { echo "$b"; return; }
+  done
+  echo master
+}
+
+# A leading non-flag arg is an explicit base branch; the rest go to rspec.
+base=""
+if [ "${1:-}" != "" ] && [ "${1#-}" = "$1" ]; then
+  base="$1"; shift
+fi
+base="${base:-$(resolve_base)}"
+
+# Fork point: everything on this branch (committed + uncommitted), nothing the
+# base has gained since. Falls back to the base tip if there's no shared history.
+fork="$(git merge-base "$base" HEAD 2>/dev/null || echo "$base")"
+
+# Changed, non-deleted/renamed files since the fork point.
+# `|| true`: grep exits 1 on no match, which would abort under `set -e`.
+changed="$(git diff --name-status "$fork" | grep -vE '^[DR]' | awk '{print $2}' || true)"
+
+# Map each changed file to the spec that exercises it.
+specs=""
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  case "$f" in
+    spec/system/*) continue ;;                               # system specs excluded (they precompile assets)
+    *_spec.rb)  spec="$f" ;;                                  # already a spec
+    app/*.rb)   spec="spec/${f#app/}"; spec="${spec%.rb}_spec.rb" ;;
+    lib/*.rb)   spec="spec/${f%.rb}_spec.rb" ;;               # spec/lib/...
+    *)          continue ;;
+  esac
+  [ -f "$spec" ] && specs="$specs$spec"$'\n'
+done <<< "$changed"
+
+# Dedupe while preserving order.
+specs="$(printf '%s' "$specs" | awk 'NF && !seen[$0]++')"
+
+if [ -z "$specs" ]; then
+  echo "dspec: no affected specs vs $base"
+  exit 0
+fi
+
+count="$(printf '%s\n' "$specs" | grep -c .)"
+echo "──────────────────────────────────────────────"
+echo "dspec: running $count spec file(s) vs $base"
+printf '%s\n' "$specs" | sed 's/^/  /'
+echo "──────────────────────────────────────────────"
+
+echo "$specs" | xargs bundle exec rspec --format documentation "$@"

@@ -51,14 +51,12 @@ gsync() {
   }
   git checkout "$1" && git fetch --all && git pull
 }
-alias dev="gsync develop"
 alias master="gsync master"
 alias main="gsync main"
 alias staging="gsync staging"
 alias qa="gsync qa"
 # alias gcm="git checkout main"
 alias gmm="git merge main"
-alias gmd="git merge develop"
 alias gcb="git checkout -b"
 
 alias recent="git recent -n 10"
@@ -78,7 +76,7 @@ alias bepc="COVERAGE=true bep"
 alias ber="bundle exec rspec"
 alias berdoc="bundle exec rspec  --profile --format=documentation"
 alias berf="bundle exec rspec --format=documentation --only-failures"
-# alias berdiff="bundle exec rspec $(git diff --name-only develop...HEAD -- spec/ | grep '_spec\.rb$')"
+# (`berdiff` — run rspec on specs affected by branch changes — is now `dspec` in bin/.)
 alias berc="bundle exec rails console"
 alias bers="bundle exec rails server"
 alias becop="bundle exec rubocop app/ spec/ --force-exclusion"

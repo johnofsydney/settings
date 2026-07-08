@@ -20,8 +20,7 @@
 #   WORKTREE_BASE_BRANCH  branch new work forks from        (default: auto-detected)
 #
 # Base-branch resolution (when not passed as an arg): WORKTREE_BASE_BRANCH,
-# else develop if it exists, else origin's default branch (origin/HEAD),
-# else main/master.
+# else origin's default branch (origin/HEAD), else main/master.
 #
 # Usage:
 #   worktree new <name> [port] [base-branch]   # create + set up   (base-branch default: auto-detected)
@@ -46,17 +45,16 @@ branch_exists() {
 }
 
 # Pick the branch new work should fork from, in priority order:
-#   1. WORKTREE_BASE_BRANCH override  2. develop (if it exists)
-#   3. origin's default branch (origin/HEAD)  4. main / master
+#   1. WORKTREE_BASE_BRANCH override
+#   2. origin's default branch (origin/HEAD)  3. main / master
 # Call after `git fetch` so remote refs are current.
 resolve_base() {
   if [ -n "${WORKTREE_BASE_BRANCH:-}" ]; then echo "$WORKTREE_BASE_BRANCH"; return; fi
-  branch_exists develop && { echo develop; return; }
   local head
   head="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')"
   [ -n "$head" ] && { echo "$head"; return; }
   for b in main master; do branch_exists "$b" && { echo "$b"; return; }; done
-  echo develop   # nothing matched; let the downstream git error surface
+  echo main   # nothing matched; let the downstream git error surface
 }
 
 # Ports already pinned by existing worktrees' .env files.

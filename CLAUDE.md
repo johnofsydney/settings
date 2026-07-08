@@ -59,6 +59,7 @@ Some SSH aliases in `personal_aliases.sh` reference `$LESTER_REMOTE_DB_HOST` etc
 - `bin/` — standalone executable scripts (not sourced — run directly, so they carry their own `#!/usr/bin/env bash` + `set -euo pipefail` and parse args). On `PATH` via the export in `my_extensions.sh`, and named without a `.sh` extension so they invoke bare. Current commands (kebab-case names, invoked bare since `bin/` is on `PATH`):
   - `worktree` — spin up / tear down isolated per-ticket git worktrees (`worktree new|ls|rm`); project-agnostic, derives repo name / db / port from the current git toplevel.
   - `dcop` — run rubocop on the Ruby files changed vs the auto-detected base branch (`dcop [base]`).
+  - `dspec` — run rspec on the specs affected by branch changes: changed `*_spec.rb` files plus the specs covering changed `app/`/`lib/` sources, measured from the branch's `merge-base` with the auto-detected base (`dspec [base] [rspec args]`).
   - `backup-local-db` — `pg_dump` the local `<dir>_development` database to a timestamped file in `tmp/` (`backup-local-db [db_name]`).
   - `delete-finished-branches` — delete local branches + their origin counterpart, except protected mainlines and the current branch (override the keep-list via `PROTECTED_BRANCHES`).
 
