@@ -1,6 +1,4 @@
 work_aliases.sh
-work_functions.sh
-home_aliases.sh
 env_variables.sh
 
 .DS_Store

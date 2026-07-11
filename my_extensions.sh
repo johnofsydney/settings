@@ -14,6 +14,10 @@ export EDITOR="code --wait"
 
 export GIT_MERGE_AUTOEDIT=no
 
+# Put this repo's bin/ on PATH so its scripts (e.g. `worktree`) are callable
+# from any directory. $SETTINGS_FOLDER is exported by ~/.zshrc (see setup_003).
+export PATH="$SETTINGS_FOLDER/bin:$PATH"
+
 export HISTTIMEFORMAT="%d/%m/%y %T "
 export HISTFILE="$HOME/.zsh_history"
 export HISTSIZE=1000000000
@@ -35,14 +39,24 @@ alias ga="git add ."
 alias gst="git status"
 alias glog="git log --graph --all --pretty='format:%C(auto)%h %C(cyan)%ar %C(auto)%d %C(magenta)%an %C(auto)%s'"
 alias gc-="git checkout -"
-alias dev="git checkout develop && git fetch --all && git pull"
-alias master="git checkout master && git fetch --all && git pull"
-alias main="git checkout main && git fetch --all && git pull"
-alias staging="git checkout staging && git fetch && git pull"
-alias qa="git checkout qa && git fetch && git pull"
+
+# Check out a branch and sync it with origin. Refuses on a dirty tree so you
+# never drag uncommitted work onto another branch by accident (a dirty tree is
+# exactly when you don't want an auto-pull). The dev/main/master/... aliases
+# below all delegate to this.
+gsync() {
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "gsync: not a git repo"; return 1; }
+  git diff --quiet && git diff --cached --quiet || {
+    echo "gsync: working tree is dirty — commit or stash first"; return 1
+  }
+  git checkout "$1" && git fetch --all && git pull
+}
+alias master="gsync master"
+alias main="gsync main"
+alias staging="gsync staging"
+alias qa="gsync qa"
 # alias gcm="git checkout main"
 alias gmm="git merge main"
-alias gmd="git merge develop"
 alias gcb="git checkout -b"
 
 alias recent="git recent -n 10"
@@ -65,15 +79,16 @@ alias bepc="COVERAGE=true bep"
 alias ber="bundle exec rspec"
 alias berdoc="bundle exec rspec  --profile --format=documentation"
 alias berf="bundle exec rspec --format=documentation --only-failures"
-function berdiff() { bundle exec rspec $(git diff --name-only develop...HEAD -- spec/ | grep '_spec\.rb$'); }
+# (`berdiff` — run rspec on specs affected by branch changes — is now `dspec` in bin/.)
 alias berc="bundle exec rails console"
 alias bers="bundle exec rails server"
 alias becop="bundle exec rubocop app/ spec/ --force-exclusion"
-# alias dcop="git diff --staged --name-only --diff-filter=d | grep -E '\.(rb|rake)$' | xargs bundle exec rubocop"
 
 alias cc="code-insiders ."
 
-# python3 aliases
+# python/pip: there's no bare `python` on modern macOS, so these just point at
+# python3/pip3. Safe today because mise doesn't manage Python here — REMOVE them
+# if you ever run `mise use python@X`, or they'll shadow mise's python shim.
 alias python=python3
 alias pip=pip3
 
@@ -103,27 +118,7 @@ function hh () {
   fi
 }
 
-function mkcd () { mkdir -p "$@" && cd "$@"; }
-
-function runNested() {
-  color=cyan
-
-  for d in ./*/
-    do /bin/zsh -c "
-    (
-      cd "$d" &&
-      print -P "%F{$color}$d%f" &&
-      "$@"
-      echo '\n'
-      )
-    "
-  done
-}
-
-function dcop () {
-  # really want to rewrite this to be more robust, but for now this is a quick way to run rubocop only on the staged files that haven't been deleted or renamed.
-  git diff --name-status master | grep -v "^D\|^R" | grep ".rb" | awk '{print $2}' | xargs bundle exec rubocop
-}
+function mkcd () { mkdir -p "$1" && cd "$1"; }
 
 gch() {
   git checkout $(git branch | fzf| tr -d "[[:space:]]")
@@ -131,14 +126,8 @@ gch() {
 
 alias ch=gch
 
-
-function backup_local_db () {
-  echo "Creating backup on local..."
-
-  db_name="$(basename $PWD)_development"
-
-  pg_dump -h localhost -U postgres -d $db_name > tmp/db_backup_$(basename $PWD)_$(date +%Y%m%d_%H%M%S).sql
-}
-
-
-source /opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+# zsh-syntax-highlighting (brew formula, installed by setup_001). $HOMEBREW_PREFIX
+# is set by `brew shellenv` in ~/.zprofile; fall back to the Apple-silicon default
+# so this also works on Intel. Guarded so a missing plugin doesn't error every shell.
+ZSH_SYNTAX_HL="${HOMEBREW_PREFIX:-/opt/homebrew}/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+[ -f "$ZSH_SYNTAX_HL" ] && source "$ZSH_SYNTAX_HL"

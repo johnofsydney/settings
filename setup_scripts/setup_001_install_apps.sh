@@ -70,6 +70,9 @@ install_formula gnupg
 install_formula blueutil
 install_formula zsh-syntax-highlighting
 install_formula node
+install_formula gh              # GitHub CLI, for interacting with GitHub from the terminal
+install_formula tree
+
 
 # fzf needs a post-install step to wire up shell integrations
 if brew list fzf &>/dev/null; then
@@ -88,8 +91,9 @@ fi
 install_cask spotify
 install_cask postman   # API client
 install_cask rectangle # excellent window manager
-install_cask slack
-install_cask fork
+install_cask slack     # you know what this is
+install_cask fork      # Git GUI client
+install_cask obsidian  # knowledge management app
 
 # Returns 0 (true) if any of the given casks are not yet installed.
 any_cask_missing() {

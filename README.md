@@ -53,11 +53,12 @@ before each. Every script is idempotent, so it's safe to re-run.
 - Appends a fenced `source` block to `~/.zshrc`. The fenced marker
   (`# >>> settings repo (setup_003) >>>`) prevents duplicate appends.
 
-What `~/.zshrc` ends up sourcing:
-- `my_extensions.sh` — aliases, functions, non-sensitive env vars
-- `mac_settings.sh` — Mac-only zsh options, Rectangle aliases, Bluetooth helpers
-- `work_aliases.sh` — gitignored, machine-specific
+What `~/.zshrc` ends up sourcing (in order):
 - `env_variables.sh` — gitignored, secrets / per-machine env vars
+- `my_extensions.sh` — aliases, functions, non-sensitive env vars
+- `mac_settings.sh` — macOS-only (self-guards): zsh options, Rectangle aliases
+- `work_aliases.sh` — gitignored, machine-specific
+- `personal_aliases.sh` — committed but personal: folder / SSH / Bluetooth aliases
 - `prompt.sh` — `PROMPT` definition
 
 Machine-specific tweaks (custom PATH, etc.) belong directly in `~/.zshrc`, not this repo.
@@ -78,6 +79,6 @@ a custom folder or URL_ and select `iterm_preferences/`.
 ```
 ./setup_scripts/setup_005_dev_stuff.sh
 ```
-- Brew-installs `postgresql@16`, `redis`, `mise`.
+- Prompts for a PostgreSQL major version (default `18`, or `skip`), then brew-installs `postgresql@<version>`, `redis`, `mise`.
 - Appends `mise activate` to `~/.zshrc` (fenced, so re-runs don't duplicate).
 - Starts the Postgres and Redis services.

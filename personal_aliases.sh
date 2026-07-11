@@ -14,20 +14,6 @@ alias ssh_lester_app_server="ssh deploy@${LESTER_REMOTE_APP_HOST}"
 ##################################################
 
 
-function npj () {
-  # has not been used for years, leaving here for posterity. creates a new project folder with some basic files and folders for a js project.
-  mkdir -p "$@"
-  cd "$@"
-  mkdir "js"
-  mkdir "css"
-  touch "index.html"
-  touch "README.md"
-  touch "js/main.js"
-  curl "https://code.jquery.com/jquery-3.3.1.js > js/jquery.js"
-  curl "https://raw.githubusercontent.com/jashkenas/underscore/master/underscore.js > js/underscore.js"
-  touch "css/main.css"
-}
-
 PXC_HEADPHONES="00-16-94-20-d2-9b"
 HOME_KEYBOARD="40-e6-4b-94-0b-b7"
 HOME_MOUSE="30-d9-d9-95-e7-27"

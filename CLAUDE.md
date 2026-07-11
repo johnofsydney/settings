@@ -29,7 +29,7 @@ So re-running the bootstrap (or any single script) is safe.
 - `setup_002_configure_git.sh` — prompts for name/email, then sets ~25 `git config --global` values. The repo treats this script as the source of truth for global git config — change it here rather than running ad-hoc `git config` commands. Does not install git itself anymore (that's setup_001's job).
 - `setup_003_setup_dot_files.sh` — the orchestrator. Resolves `$SETTINGS_FOLDER` from its own location (one level up from `setup_scripts/`), exports it, creates empty `work_aliases.sh` / `env_variables.sh`, then appends a fenced `source` block to `~/.zshrc` pointing back into this repo. Note: it does **not** modify `~/.gitignore_global` — that's purely the repo's `.gitignore` job now.
 - `setup_004_app_preferences.sh` — symlinks `vscode/settings.json` and `vscode/keybindings.json` into both VS Code and VS Code Insiders' `Application Support` folders. iTerm and Rectangle preferences must be imported through their GUIs (see README).
-- `setup_005_dev_stuff.sh` — installs `postgresql@16`, `redis`, and `mise`. Appends `mise activate` to `~/.zshrc` (fenced). Starts both services.
+- `setup_005_dev_stuff.sh` — prompts for a PostgreSQL major version (default `18`; enter `skip` to skip Postgres entirely), then installs `postgresql@<version>`, `redis`, and `mise`. Appends `mise activate` to `~/.zshrc` (fenced). Starts both services.
 
 ## Runtime architecture: how a shell session loads
 
@@ -37,26 +37,37 @@ So re-running the bootstrap (or any single script) is safe.
 
 ```
 export SETTINGS_FOLDER="<repo path>"
+source "$SETTINGS_FOLDER/env_variables.sh"    # gitignored
 source "$SETTINGS_FOLDER/my_extensions.sh"
-source "$SETTINGS_FOLDER/mac_settings.sh"
-source "$SETTINGS_FOLDER/work_aliases.sh"   # gitignored
-source "$SETTINGS_FOLDER/env_variables.sh"  # gitignored
+source "$SETTINGS_FOLDER/mac_settings.sh"     # self-guards to macOS
+source "$SETTINGS_FOLDER/work_aliases.sh"     # gitignored
+source "$SETTINGS_FOLDER/personal_aliases.sh"
 source "$SETTINGS_FOLDER/prompt.sh"
 ```
 
 So at shell startup, `.zshrc` reaches into this repo via `$SETTINGS_FOLDER`. That env var is the seam that makes the repo location-independent (any clone path works). When adding new shell config, the choice is:
 
-- **Committed, cross-machine**: add it to one of `my_extensions.sh` / `mac_settings.sh` / `prompt.sh`, or create a new file and add a `source` line both here in `setup_003` *and* in the user's existing `~/.zshrc`.
+- **Committed, cross-machine, general**: add it to `my_extensions.sh` / `mac_settings.sh` / `prompt.sh`, or create a new file and add a `source` line both here in `setup_003` *and* in the user's existing `~/.zshrc`.
+- **Committed but personal** (own-projects folder shortcuts, personal SSH/Bluetooth aliases — not work, not secret): put it in `personal_aliases.sh`. It's committed (so it syncs across the user's machines) but of no use to anyone else.
 - **Machine-specific or secret** (work API keys, work-only aliases, work hostnames): put it in `work_aliases.sh` or `env_variables.sh` — both are gitignored and created empty by `setup_003`.
 
-Some example aliases in `my_extensions.sh` reference `$LESTER_REMOTE_DB_HOST` etc. — those env vars live in the gitignored `env_variables.sh`.
+Some SSH aliases in `personal_aliases.sh` reference `$LESTER_REMOTE_DB_HOST` etc. — those env vars live in the gitignored `env_variables.sh`.
 
 ### What each sourced file owns
 
-- `my_extensions.sh` — the bulk of personal config: env vars (`LS_COLORS`, `EDITOR`, history settings), aliases (folder shortcuts, git, rspec/bundler, ssh), and shell functions (`gac`, `hh`, `mkcd`, `gch`, `delete_finished_branches`, etc.). `ls` is aliased to `gls` (GNU coreutils) — the BSD `ls` shipped with macOS doesn't honor `LS_COLORS`. History append uses zsh-native `setopt INC_APPEND_HISTORY` / `SHARE_HISTORY`, not the bash-only `PROMPT_COMMAND`.
-- `mac_settings.sh` — Mac-only zsh options (autocorrect tweaks, `auto_pushd`), the `d`/`dirs` recent-directories helper with `1`–`9` aliases, Rectangle window-manager URL aliases (`83`, `99`, etc.), and Bluetooth device aliases via `blueutil` (`pxc_on/off`, `kvm_home`).
-- `prompt.sh` — defines `PROMPT` directly with zsh `%`-escapes and three helpers: `parse_git_branch_status`, `parse_mise_ruby_version`, `parse_mise_node_version`.
-- `old_spinup_functions.sh` — archive of larger iTerm/AppleScript helper functions (`spinup_real`, `spinup_lester`, `chat`, `goog`) that were trimmed out of `my_extensions.sh` to keep it focused. Not sourced. Restore from here if you want them back.
+- `my_extensions.sh` — the bulk of cross-machine config: env vars (`LS_COLORS`, `EDITOR`, history settings), aliases (the `settings` folder shortcut, git, rspec/bundler), and shell functions that must stay sourced because they change shell state or read interactive history (`gac`, `hh`, `mkcd`, `gch`, `gsync`, etc.). Self-contained commands that don't touch shell state live in `bin/` instead. It also sources `zsh-syntax-highlighting` (guarded, via `$HOMEBREW_PREFIX`). `ls` is aliased to `gls` (GNU coreutils) — the BSD `ls` shipped with macOS doesn't honor `LS_COLORS`. History append uses zsh-native `setopt INC_APPEND_HISTORY` / `SHARE_HISTORY`, not the bash-only `PROMPT_COMMAND`. It also prepends `$SETTINGS_FOLDER/bin` to `PATH` so standalone executables in `bin/` are callable from anywhere.
+- `bin/` — standalone executable scripts (not sourced — run directly, so they carry their own `#!/usr/bin/env bash` + `set -euo pipefail` and parse args). On `PATH` via the export in `my_extensions.sh`, and named without a `.sh` extension so they invoke bare. Current commands (kebab-case names, invoked bare since `bin/` is on `PATH`):
+  - `worktree` — spin up / tear down isolated per-ticket git worktrees (`worktree new|ls|rm`); project-agnostic, derives repo name / db / port from the current git toplevel.
+  - `dcop` — run rubocop on the Ruby files changed vs the auto-detected base branch (`dcop [base]`).
+  - `dspec` — run rspec on the specs affected by branch changes: changed `*_spec.rb` files plus the specs covering changed `app/`/`lib/` sources, measured from the branch's `merge-base` with the auto-detected base (`dspec [base] [rspec args]`).
+  - `backup-local-db` — `pg_dump` the local `<dir>_development` database to a timestamped file in `tmp/` (`backup-local-db [db_name]`).
+  - `delete-finished-branches` — delete local branches + their origin counterpart, except protected mainlines and the current branch (override the keep-list via `PROTECTED_BRANCHES`).
+
+  To add a new global command, drop an executable in `bin/` — no other wiring needed. Because these run as subprocesses, they must **not** need to change the calling shell (no `cd`, no `export` into the parent); anything that does belongs in a sourced file as a function.
+- `mac_settings.sh` — macOS-only (bails early via a `[[ "$OSTYPE" == darwin* ]] || return` guard so it's safe to source anywhere): zsh options (autocorrect tweaks, `auto_pushd`), the `d`/`dirs` recent-directories helper with `1`–`9` aliases, Rectangle window-manager URL aliases (`83`, `99`, etc.), and the `~/.fzf.zsh` source.
+- `personal_aliases.sh` — committed but personal: own-projects folder shortcuts (`notes`, `john`, `lester`, …), SSH aliases (`ssh_lester_*`, referencing `$LESTER_*` env vars from `env_variables.sh`), and Bluetooth device aliases via `blueutil` (`pxc_on`/`pxc_off`, `connect_peripherals`). Syncs across the user's machines but isn't useful to anyone else.
+- `prompt.sh` — defines `PROMPT` directly with zsh `%`-escapes and two helpers: `parse_git_branch_status` (one `git status --porcelain --branch` call for branch + dirty/clean) and `parse_mise_versions` (one `mise current` call rendering both ruby + node).
+- `old_spinup_functions.sh` — archive of larger iTerm/AppleScript helper functions (`spinup_real`, `spinup_lester`) that were trimmed out of `my_extensions.sh` to keep it focused. Not sourced. Restore from here if you want them back.
 
 ## VS Code settings
 
