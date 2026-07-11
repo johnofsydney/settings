@@ -47,6 +47,7 @@ alias gcb="git checkout -b"
 
 alias recent="git recent -n 10"
 alias git_delete_completed_local_branches="git branch --merged main | grep -v '^\*\|main\|staging' | xargs git branch -d"
+alias git_delete_completed_remote_branches="git fetch --prune && git branch -r --merged main | grep 'origin/' | grep -v 'origin/HEAD\|origin/main\|origin/staging' | sed 's/.*origin\///' | xargs git push origin --delete"
 
 alias gp="git push"
 alias gd="git diff"
@@ -64,7 +65,7 @@ alias bepc="COVERAGE=true bep"
 alias ber="bundle exec rspec"
 alias berdoc="bundle exec rspec  --profile --format=documentation"
 alias berf="bundle exec rspec --format=documentation --only-failures"
-alias berdiff="bundle exec rspec $(git diff --name-only develop...HEAD -- spec/ | grep '_spec\.rb$')"
+function berdiff() { bundle exec rspec $(git diff --name-only develop...HEAD -- spec/ | grep '_spec\.rb$'); }
 alias berc="bundle exec rails console"
 alias bers="bundle exec rails server"
 alias becop="bundle exec rubocop app/ spec/ --force-exclusion"
