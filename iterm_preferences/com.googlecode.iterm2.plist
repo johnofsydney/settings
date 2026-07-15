@@ -7111,7 +7111,7 @@
 			<key>Title Components</key>
 			<integer>34</integer>
 			<key>Transparency</key>
-			<real>0.13565848214285714</real>
+			<real>0.0</real>
 			<key>Unicode Normalization</key>
 			<integer>0</integer>
 			<key>Unicode Version</key>
@@ -8037,7 +8037,7 @@
 			<key>Title Components</key>
 			<integer>32</integer>
 			<key>Transparency</key>
-			<real>0.24547991071428571</real>
+			<real>0.0</real>
 			<key>Underline Color</key>
 			<dict>
 				<key>Alpha Component</key>
@@ -8963,7 +8963,7 @@
 			<key>Title Components</key>
 			<integer>32</integer>
 			<key>Transparency</key>
-			<real>0.24385365216565336</real>
+			<real>0.0</real>
 			<key>Unlimited Scrollback</key>
 			<false/>
 			<key>Use Bold Font</key>
