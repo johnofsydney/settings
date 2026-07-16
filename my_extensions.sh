@@ -22,6 +22,9 @@ export HISTTIMEFORMAT="%d/%m/%y %T "
 export HISTFILE="$HOME/.zsh_history"
 export HISTSIZE=1000000000
 export SAVEHIST=1000000000
+
+export COREPACK_ENABLE_AUTO_PIN=0
+# Corepack still works normally — it just stops auto-pinning. If a repo already has a packageManager field, Corepack still respects it and uses that version. You're only disabling the "silently add one for me" behaviour.
 ##################################################
 
 alias ls="gls --color=auto" # gls is using GNU/linux version of ls from coreutils, which has better color support than the default mac version of ls.
