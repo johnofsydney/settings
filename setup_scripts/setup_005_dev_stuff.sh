@@ -22,6 +22,7 @@ fi
 brew install redis
 
 brew install mise
+mise settings node.corepack=true
 
 # Append mise activation to ~/.zshrc only once — fenced marker mirrors setup_003.
 MISE_MARKER="# >>> mise activate (setup_005) >>>"
