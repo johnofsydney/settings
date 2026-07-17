@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+#
+# update-brews — run the setup script from anywhere.
+#
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+SETUP_SCRIPT="$REPO_ROOT/setup_scripts/setup_001_install_apps.sh"
+
+if [[ ! -f "$SETUP_SCRIPT" ]]; then
+  echo "ERROR: setup script not found at $SETUP_SCRIPT" >&2
+  exit 1
+fi
+
+exec "$SETUP_SCRIPT" "$@"

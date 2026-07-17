@@ -21,6 +21,7 @@
   "workbench.sideBar.location": "left",
   "workbench.startupEditor": "newUntitledFile",
   "window.zoomLevel": 1,
+  "files.autoSave": "afterDelay",
   "files.autoSaveWhenNoErrors": true,
   "files.trimTrailingWhitespace": true,
   "files.hotExit": "onExitAndWindowClose",
@@ -95,7 +96,7 @@
     { "name": "Something Different", "value": "#832561" },
     { "name": "Vue Green", "value": "#42b883" }
   ],
-  "peacock.surpriseMeOnStartup": true,
+  "peacock.surpriseMeOnStartup": false,
   "github.copilot.enable": {
     "*": true,
     "plaintext": false,

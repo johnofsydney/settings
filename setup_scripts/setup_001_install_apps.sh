@@ -1,5 +1,5 @@
 echo
-echo Begining basic setup - apps install
+echo Begining basic setup - apps install or upgrades
 echo
 
 # Pre-flight: brew must exist. If you ran bootstrap.sh, it was installed there.
@@ -56,7 +56,7 @@ install_cask iterm2      # standard terminal
 
 # browsers
 install_cask google-chrome
-install_cask firefox
+# install_cask firefox
 
 # code editors
 install_cask visual-studio-code
@@ -89,11 +89,14 @@ else
 fi
 
 install_cask spotify
-install_cask postman   # API client
+# install_cask postman   # API client
 install_cask rectangle # excellent window manager
 install_cask slack     # you know what this is
 install_cask fork      # Git GUI client
 install_cask obsidian  # knowledge management app
+install_cask orbstack  # Docker replacement for Apple Silicon
+install_cask claude
+install_cask claude-code
 
 # Returns 0 (true) if any of the given casks are not yet installed.
 any_cask_missing() {
@@ -114,16 +117,16 @@ if any_cask_missing "${OFFICE_CASKS[@]}" || [[ $UPDATE_EXISTING =~ ^[Yy]$ ]]; th
   fi
 fi
 
-CLAUDE_CASKS=(claude claude-code)
-if any_cask_missing "${CLAUDE_CASKS[@]}" || [[ $UPDATE_EXISTING =~ ^[Yy]$ ]]; then
-  read -p "Do you want to install Claude (desktop) and Claude Code? (y/n) : " ANSWER
-  echo
-  if [[ $ANSWER =~ ^[Yy]$ ]]; then
-    for cask in "${CLAUDE_CASKS[@]}"; do
-      install_cask "$cask"
-    done
-  fi
-fi
+# CLAUDE_CASKS=(claude claude-code)
+# if any_cask_missing "${CLAUDE_CASKS[@]}" || [[ $UPDATE_EXISTING =~ ^[Yy]$ ]]; then
+#   read -p "Do you want to install Claude (desktop) and Claude Code? (y/n) : " ANSWER
+#   echo
+#   if [[ $ANSWER =~ ^[Yy]$ ]]; then
+#     for cask in "${CLAUDE_CASKS[@]}"; do
+#       install_cask "$cask"
+#     done
+#   fi
+# fi
 
 echo
 echo Finished Basic Apps Installation.
