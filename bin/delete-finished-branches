@@ -2,6 +2,7 @@
 #
 # delete-finished-branches — delete local branches (and their matching origin
 # branch), EXCEPT the protected mainlines and the branch you're currently on.
+# Prompts for confirmation before deleting each branch.
 #
 # Uses `git branch -D`, so it also removes branches git can't see as merged
 # (e.g. squash-merged PRs) — the common case. Project-agnostic; run from any
@@ -35,7 +36,13 @@ if [ -z "$branches" ]; then
   exit 0
 fi
 
-echo "$branches" | while read -r branch; do
+while read -r branch; do
+  read -r -p "Delete branch '$branch'? [y/N] " confirm < /dev/tty
+  case "$confirm" in
+    [yY]|[yY][eE][sS]) ;;
+    *) echo "  skipping '$branch'"; continue ;;
+  esac
+
   echo "Deleting local branch: $branch"
   git branch -D "$branch" || { echo "  (could not delete local '$branch' — skipping)"; continue; }
   if git ls-remote --heads origin "$branch" 2>/dev/null | grep -q .; then
@@ -43,4 +50,4 @@ echo "$branches" | while read -r branch; do
   else
     echo "  (no remote branch '$branch' — skipping remote deletion)"
   fi
-done
+done <<< "$branches"
