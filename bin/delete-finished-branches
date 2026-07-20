@@ -1,46 +1,238 @@
 #!/usr/bin/env bash
 #
-# delete-finished-branches — delete local branches (and their matching origin
-# branch), EXCEPT the protected mainlines and the branch you're currently on.
+# delete-finished-branches — review and delete local git branches, SAFELY.
 #
-# Uses `git branch -D`, so it also removes branches git can't see as merged
-# (e.g. squash-merged PRs) — the common case. Project-agnostic; run from any
-# git repo. A single branch that fails to delete is reported and skipped rather
-# than aborting the whole run.
+# Safety-first replacement for the old "force-delete everything" script:
+#   - Dry-run by default: prints a status table and does NOTHING until asked.
+#   - Classifies every branch (merged into main? has a remote? open/merged PR?
+#     unpushed local-only commits?) and recommends an action, colour-coded.
+#   - Never force-deletes a branch that has an OPEN PR, or commits that live
+#     nowhere but locally, without an explicit typed confirmation.
+#   - Protected mainlines, the current branch, and worktree-checked-out
+#     branches are always skipped.
+#   - Every deletion is logged (name + sha) to .git/deleted-branches.log and a
+#     ready-to-paste restore command is printed, so a mistake is one paste to undo.
+#
+# Project-agnostic; run from any git repo.
+#
+# Usage:
+#   delete-finished-branches                # dry-run: show the table, do nothing
+#   delete-finished-branches --merged       # delete only clearly-merged branches (one confirm)
+#   delete-finished-branches -i             # interactive: decide each branch
+#   delete-finished-branches --merged --include-remote
+#                                           # also delete the origin copy of merged branches
+#   delete-finished-branches -h
 #
 # Config (override via env):
 #   PROTECTED_BRANCHES   pipe-separated regex of branches to keep
-#                        (default: main|master|staging|qa)
-#
-# Usage:
-#   delete-finished-branches
+#                        (default: main|master|staging|qa|develop)
 #
 set -euo pipefail
 
-protected="${PROTECTED_BRANCHES:-main|master|staging|qa}"
+protected="${PROTECTED_BRANCHES:-main|master|staging|qa|develop}"
 
-current="$(git symbolic-ref --quiet --short HEAD)" || {
-  echo "Detached HEAD (not on a branch) — aborting." >&2
-  exit 1
-}
+# ---- flags -----------------------------------------------------------------
+mode="dryrun"          # dryrun | merged | interactive
+include_remote=0
+assume_yes=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -i | --interactive) mode="interactive" ;;
+    --merged)           mode="merged" ;;
+    --include-remote)   include_remote=1 ;;
+    -y | --yes)         assume_yes=1 ;;
+    -h | --help)        sed -n '3,32p' "$0"; exit 0 ;;
+    *) echo "unknown option: $1 (try -h)" >&2; exit 2 ;;
+  esac
+  shift
+done
 
-# `|| true`: grep exits 1 when everything is filtered out (nothing to delete),
-# which would otherwise abort under `set -e`.
-branches="$(git branch --format='%(refname:short)' \
-  | grep -vE "^(${protected})$" \
-  | grep -vxF "$current" || true)"
-
-if [ -z "$branches" ]; then
-  echo "No finished branches to delete."
-  exit 0
+# ---- colours (only when writing to a terminal) -----------------------------
+if [ -t 1 ]; then
+  R=$'\033[31m'; G=$'\033[32m'; Y=$'\033[33m'; DIM=$'\033[2m'; BOLD=$'\033[1m'; X=$'\033[0m'
+else
+  R=""; G=""; Y=""; DIM=""; BOLD=""; X=""
 fi
 
-echo "$branches" | while read -r branch; do
-  echo "Deleting local branch: $branch"
-  git branch -D "$branch" || { echo "  (could not delete local '$branch' — skipping)"; continue; }
-  if git ls-remote --heads origin "$branch" 2>/dev/null | grep -q .; then
-    git push origin --delete "$branch" || echo "  (could not delete remote '$branch')"
-  else
-    echo "  (no remote branch '$branch' — skipping remote deletion)"
-  fi
+# ---- guards ----------------------------------------------------------------
+git rev-parse --git-dir >/dev/null 2>&1 || { echo "Not a git repo." >&2; exit 1; }
+current="$(git symbolic-ref --quiet --short HEAD || true)"
+gitdir="$(git rev-parse --git-dir)"
+log="$gitdir/deleted-branches.log"
+
+# Mainline to test "merged into" against: first of these that exists.
+mainline=""
+for cand in origin/main origin/master main master; do
+  git rev-parse --verify --quiet "$cand" >/dev/null && { mainline="$cand"; break; }
 done
+[ -n "$mainline" ] || { echo "No main/master ref found to compare against." >&2; exit 1; }
+
+# ---- gather shared context once (avoid per-branch network calls) -----------
+# Branches currently checked out in a worktree — git will refuse to delete these.
+wt_branches="$(git worktree list --porcelain | awk '/^branch /{sub("refs/heads/","",$2); print $2}')"
+
+echo "${DIM}▶ querying origin…${X}" >&2
+remote_heads="$(git ls-remote --heads origin 2>/dev/null | sed -E 's#.*refs/heads/##' || true)"
+
+merged_pr_heads=""; open_pr_map=""
+if command -v gh >/dev/null 2>&1; then
+  echo "${DIM}▶ querying pull requests…${X}" >&2
+  merged_pr_heads="$(gh pr list --state merged --limit 1000 --json headRefName --jq '.[].headRefName' 2>/dev/null || true)"
+  open_pr_map="$(gh pr list --state open --limit 1000 --json headRefName,number --jq '.[] | "\(.headRefName)\t\(.number)"' 2>/dev/null || true)"
+fi
+
+in_list()      { printf '%s\n' "$2" | grep -qxF "$1"; }
+open_pr_for()  { printf '%s\n' "$open_pr_map" | awk -F'\t' -v b="$1" '$1==b{print $2; exit}'; }
+
+# ---- classify + print the table --------------------------------------------
+declare -a C_NAME C_SHA C_CLASS C_REMOTE   # collected deletion candidates (non-skipped)
+
+printf "\n${BOLD}%-2s %-58s %-7s %-7s %-13s %s${X}\n" "" "BRANCH" "MERGED" "REMOTE" "PR" "RECOMMENDATION"
+printf "${DIM}%s${X}\n" "$(printf '%.0s─' $(seq 1 110))"
+
+while IFS= read -r b; do
+  [ -n "$b" ] || continue
+  sha="$(git rev-parse "$b")"
+
+  # Skip reasons (never candidates).
+  reason=""
+  if printf '%s' "$b" | grep -qE "^(${protected})$"; then reason="protected"
+  elif [ "$b" = "$current" ]; then reason="current branch"
+  elif in_list "$b" "$wt_branches"; then reason="in a worktree"
+  fi
+  if [ -n "$reason" ]; then
+    printf "${DIM}%-2s %-58s %-7s %-7s %-13s skip: %s${X}\n" "·" "$b" "" "" "" "$reason"
+    continue
+  fi
+
+  if git merge-base --is-ancestor "$sha" "$mainline" 2>/dev/null; then merged_main=1; else merged_main=0; fi
+  if in_list "$b" "$remote_heads"; then has_remote=1; else has_remote=0; fi
+  if in_list "$b" "$merged_pr_heads"; then merged_pr=1; else merged_pr=0; fi
+  openpr="$(open_pr_for "$b")"
+
+  if [ "$has_remote" = 1 ]; then
+    risk="$(git rev-list --count "origin/$b..$sha" 2>/dev/null || echo 0)"   # local commits not on origin
+  else
+    risk="$(git rev-list --count "$mainline..$sha" 2>/dev/null || echo 0)"   # commits not in mainline
+  fi
+
+  if   [ -n "$openpr" ];                            then cls=OPENPR
+  elif [ "$merged_main" = 1 ];                      then cls=MERGED
+  elif [ "$merged_pr" = 1 ];                        then cls=PRMERGED
+  elif [ "$has_remote" = 1 ] && [ "$risk" = 0 ];    then cls=PUSHED
+  else                                                   cls=UNMERGED
+  fi
+
+  case "$cls" in
+    MERGED)   col=$G; dot="●"; reco="safe · merged into ${mainline#origin/}" ;;
+    PRMERGED) col=$G; dot="●"; reco="safe · PR merged (squash)" ;;
+    PUSHED)   col=$Y; dot="●"; reco="ok · pushed to origin, recoverable" ;;
+    OPENPR)   col=$R; dot="▲"; reco="KEEP · open PR #$openpr — deleting closes it" ;;
+    UNMERGED) col=$R; dot="▲"; reco="KEEP · $risk commit(s) only here, not on any remote" ;;
+  esac
+
+  m_txt=$([ "$merged_main" = 1 ] && echo yes || echo no)
+  r_txt=$([ "$has_remote" = 1 ] && echo origin || echo "-")
+  if   [ -n "$openpr" ];        then p_txt="#$openpr open"
+  elif [ "$merged_pr" = 1 ];    then p_txt="merged"
+  else                               p_txt="-"; fi
+
+  printf "${col}%-2s${X} %-58s %-7s %-7s %-13s ${col}%s${X}\n" "$dot" "$b" "$m_txt" "$r_txt" "$p_txt" "$reco"
+
+  C_NAME+=("$b"); C_SHA+=("$sha"); C_CLASS+=("$cls"); C_REMOTE+=("$has_remote")
+done < <(git for-each-ref --format='%(refname:short)' refs/heads/)
+
+echo
+echo "${DIM}Legend: ${G}● safe${X}${DIM} to delete · ${Y}● pushed${X}${DIM} (recoverable) · ${R}▲ keep${X}${DIM} (confirm required)${X}"
+
+# ---- deletion helpers ------------------------------------------------------
+declare -a RESTORE
+do_delete() {   # name sha class has_remote
+  local name="$1" sha="$2" cls="$3" hasrem="$4"
+  if git branch -d "$name" >/dev/null 2>&1 || git branch -D "$name" >/dev/null 2>&1; then
+    printf '%s  %s  %s\n' "$(date '+%F %T')" "$name" "$sha" >> "$log"
+    RESTORE+=("git branch $name $sha")
+    echo "  ${G}✓ deleted local${X} $name ${DIM}(was ${sha:0:9})${X}"
+  else
+    echo "  ${R}✗ could not delete${X} $name"; return
+  fi
+  if [ "$include_remote" = 1 ] && [ "$hasrem" = 1 ] && { [ "$cls" = MERGED ] || [ "$cls" = PRMERGED ]; }; then
+    if git push origin --delete "$name" >/dev/null 2>&1; then
+      echo "  ${G}✓ deleted remote${X} origin/$name"
+    else
+      echo "  ${Y}! could not delete remote${X} origin/$name"
+    fi
+  fi
+}
+
+print_restore_hint() {
+  [ "${#RESTORE[@]}" -gt 0 ] || return 0
+  echo
+  echo "${BOLD}Restore any of these with:${X}"
+  printf '  %s\n' "${RESTORE[@]}"
+  echo "${DIM}(also appended to $log)${X}"
+}
+
+confirm() {   # prompt -> 0 if yes
+  [ "$assume_yes" = 1 ] && return 0
+  local ans; read -r -p "$1 [y/N] " ans || ans=""
+  case "$ans" in [yY] | [yY][eE][sS]) return 0 ;; *) return 1 ;; esac
+}
+
+# ---- act -------------------------------------------------------------------
+total="${#C_NAME[@]}"
+
+case "$mode" in
+  dryrun)
+    echo
+    echo "Dry-run only — nothing deleted. Choose how to proceed:"
+    echo "  ${BOLD}delete-finished-branches --merged${X}   delete the ${G}safe${X} (merged) branches, one confirm"
+    echo "  ${BOLD}delete-finished-branches -i${X}         review and decide each branch interactively"
+    echo "  add ${BOLD}--include-remote${X} to also delete the origin copy of merged branches"
+    ;;
+
+  merged)
+    idx=()
+    for i in "${!C_NAME[@]}"; do
+      case "${C_CLASS[$i]}" in MERGED | PRMERGED) idx+=("$i") ;; esac
+    done
+    if [ "${#idx[@]}" -eq 0 ]; then echo; echo "No merged branches to delete."; exit 0; fi
+    echo
+    echo "${BOLD}Will delete these ${#idx[@]} merged branch(es)${X}$([ "$include_remote" = 1 ] && echo " (and their origin copies)"):"
+    for i in "${idx[@]}"; do echo "  ${G}●${X} ${C_NAME[$i]}"; done
+    echo
+    if confirm "Proceed?"; then
+      for i in "${idx[@]}"; do do_delete "${C_NAME[$i]}" "${C_SHA[$i]}" "${C_CLASS[$i]}" "${C_REMOTE[$i]}"; done
+      print_restore_hint
+    else
+      echo "Aborted."
+    fi
+    ;;
+
+  interactive)
+    [ "$total" -eq 0 ] && { echo; echo "No deletable branches."; exit 0; }
+    echo
+    echo "Interactive — for each: [d]elete  [s]kip  [q]uit. Risky ones need the name typed."
+    for i in "${!C_NAME[@]}"; do
+      b="${C_NAME[$i]}"; cls="${C_CLASS[$i]}"
+      echo
+      echo "  ${BOLD}$b${X}  ${DIM}(${cls})${X}"
+      case "$cls" in
+        OPENPR | UNMERGED)
+          echo "  ${R}⚠ risky${X} — this would lose work or close a PR."
+          ans=""; read -r -p "  type the branch name to delete, or Enter to skip: " ans || ans=""
+          if [ "$ans" = "$b" ]; then do_delete "$b" "${C_SHA[$i]}" "$cls" "${C_REMOTE[$i]}"; else echo "  skipped."; fi
+          ;;
+        *)
+          ans=""; read -r -p "  [d]elete / [s]kip / [q]uit: " ans || ans=""
+          case "$ans" in
+            d | D) do_delete "$b" "${C_SHA[$i]}" "$cls" "${C_REMOTE[$i]}" ;;
+            q | Q) break ;;
+            *)     echo "  skipped." ;;
+          esac
+          ;;
+      esac
+    done
+    print_restore_hint
+    ;;
+esac
