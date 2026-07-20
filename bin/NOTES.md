@@ -86,7 +86,7 @@ would trip on (most-coupled first):
 | **dspec** | `bundle exec rspec`, Rails `app/`/`lib/`/`spec/` layout | throughout | ❌ (inherent to purpose) |
 | **dspec** | `spec/system/**` excluded *because "they trigger asset precompilation"* — that rationale is **labmaster-derived** (its `before(:suite)` hook); the skip itself is a fine general default | `:17,63` | — |
 | **dcop** | `bundle exec rubocop` | `:37` | ❌ (inherent) |
-| **delete-finished-branches** | — pure git, fully portable | — | — |
+| **delete-finished-branches** | core is pure git; **`gh` (optional)** enriches PR/merge/ownership detection — degrades gracefully without it (see section above; rewritten 2026-07-20) | — | — |
 
 **Bottom line:** Ruby-tooling assumptions (`bundle exec rspec/rubocop`,
 `pg_dump`, Rails layout) are inherent to what the tools do — not defects. The
