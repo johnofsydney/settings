@@ -97,6 +97,20 @@ cmd_new() {
   echo "▶ database : $db  (via \$$DB_ENV_VAR)"
   echo "▶ port     : $port"
 
+  # Gate: spell out exactly what will happen, then let the user back out before
+  # anything is created. Steps are conditional on what the repo actually has.
+  echo "▶ steps    :"
+  echo "    - create worktree + branch at the paths above"
+  echo "    - write .env (PORT + $DB_ENV_VAR)"
+  [ -f "$MAIN/package.json" ] && echo "    - yarn install"
+  [ -x "$MAIN/bin/rails" ]    && echo "    - bin/rails db:prepare (creates db $db)"
+  echo ""
+  read -r -p "Proceed? [y/N] " reply || reply=""
+  case "$reply" in
+    [yY] | [yY][eE][sS]) ;;
+    *) echo "Aborted."; exit 1 ;;
+  esac
+
   if git show-ref --verify --quiet "refs/heads/$name"; then
     # Existing local branch — check it out (base-branch arg is ignored).
     echo "▶ using existing local branch"
