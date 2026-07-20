@@ -11,6 +11,43 @@ than factoring it into a shared file.
 
 ---
 
+## `delete-finished-branches` — safe branch cleanup (rewritten 2026-07-20)
+
+Replaced the old "force-delete every non-protected branch (local + remote)" script
+after it deleted in-progress and unmerged branches. The rewrite is **safe by default**.
+
+**Usage:**
+
+```
+delete-finished-branches                    # dry-run: print status table, delete NOTHING
+delete-finished-branches --merged           # delete only clearly-merged branches (one confirm)
+delete-finished-branches -i                 # interactive: decide each branch
+delete-finished-branches --merged --include-remote   # also delete the origin copy (yours only)
+delete-finished-branches -y                 # skip the confirm prompt (for --merged)
+PROTECTED_BRANCHES='main|master|develop' delete-finished-branches   # override protected set
+```
+
+**Safety model:**
+
+- **Dry-run is the default** — nothing is deleted until you pass `--merged` or `-i`.
+- Classifies each branch: merged into main / PR-merged (squash) / pushed-but-unmerged /
+  open PR / unmerged-local-only. Colour-coded, with a recommendation per branch.
+- **Never silently force-deletes** a branch with an open PR or with commits that exist
+  nowhere but locally — those require typing the branch name to confirm.
+- **Remote deletion only for branches that are yours** — ownership = PR author (`gh`),
+  or, with no PR, all unique commits authored by your `git config user.email`. Someone
+  else's branch: local delete allowed, remote kept (shown as `theirs`).
+- Always skips protected mainlines, the current branch, and worktree-checked-out branches.
+- Every deletion is logged to `.git/deleted-branches.log` with the tip SHA, and a
+  paste-to-restore `git branch <name> <sha>` line is printed — a mistake is one paste to undo.
+
+**Dependencies:** pure git for the core; **`gh` (optional)** enriches merge/open-PR
+detection and branch ownership. Without `gh` it still runs — it just falls back to
+"merged into main" (via `git merge-base`) and commit-author ownership. (This updates the
+2026-07-08 review note below, which predates the `gh` dependency.)
+
+---
+
 ## Review findings (2026-07-08)
 
 ### 1. Self-containment: PASS
