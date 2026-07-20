@@ -17,10 +17,9 @@
 #
 # Usage:
 #   delete-finished-branches                # dry-run: show the table, do nothing
-#   delete-finished-branches --merged       # delete only clearly-merged branches (one confirm)
-#   delete-finished-branches -i             # interactive: decide each branch
-#   delete-finished-branches --merged --include-remote
-#                                           # also delete the origin copy of merged branches
+#   delete-finished-branches --merged       # delete only clearly-merged branches, local only (one confirm)
+#   delete-finished-branches -i             # interactive: decide each branch, and — only when the
+#                                           #   remote copy is yours — offer to delete origin/<branch> too
 #   delete-finished-branches -h
 #
 # Config (override via env):
@@ -33,15 +32,13 @@ protected="${PROTECTED_BRANCHES:-main|master|staging|qa|develop}"
 
 # ---- flags -----------------------------------------------------------------
 mode="dryrun"          # dryrun | merged | interactive
-include_remote=0
 assume_yes=0
 while [ $# -gt 0 ]; do
   case "$1" in
     -i | --interactive) mode="interactive" ;;
     --merged)           mode="merged" ;;
-    --include-remote)   include_remote=1 ;;
     -y | --yes)         assume_yes=1 ;;
-    -h | --help)        sed -n '3,32p' "$0"; exit 0 ;;
+    -h | --help)        sed -n '3,28p' "$0"; exit 0 ;;
     *) echo "unknown option: $1 (try -h)" >&2; exit 2 ;;
   esac
   shift
@@ -170,23 +167,35 @@ echo "${DIM}Legend: ${G}● safe${X}${DIM} to delete · ${Y}● pushed${X}${DIM}
 
 # ---- deletion helpers ------------------------------------------------------
 declare -a RESTORE
-do_delete() {   # name sha class has_remote mine
-  local name="$1" sha="$2" cls="$3" hasrem="$4" mine="$5"
+# Delete the local branch only. Returns non-zero if the delete failed, so callers
+# can gate the follow-up remote prompt on a successful local delete.
+do_delete() {   # name sha
+  local name="$1" sha="$2"
   if git branch -d "$name" >/dev/null 2>&1 || git branch -D "$name" >/dev/null 2>&1; then
     printf '%s  %s  %s\n' "$(date '+%F %T')" "$name" "$sha" >> "$log"
     RESTORE+=("git branch $name $sha")
     echo "  ${G}✓ deleted local${X} $name ${DIM}(was ${sha:0:9})${X}"
+    return 0
   else
-    echo "  ${R}✗ could not delete${X} $name"; return
+    echo "  ${R}✗ could not delete${X} $name"; return 1
   fi
-  if [ "$include_remote" = 1 ] && [ "$hasrem" = 1 ] && { [ "$cls" = MERGED ] || [ "$cls" = PRMERGED ]; }; then
-    if [ "$mine" != 1 ]; then
-      echo "  ${Y}• kept remote${X} origin/$name ${DIM}(started by someone else — local deleted only)${X}"
-    elif git push origin --delete "$name" >/dev/null 2>&1; then
-      echo "  ${G}✓ deleted remote${X} origin/$name"
-    else
-      echo "  ${Y}! could not delete remote${X} origin/$name"
-    fi
+}
+
+# Offer to delete the origin copy — ONLY when it's yours. Called after a
+# successful local delete; a remote that isn't yours is kept and reported.
+offer_remote() {   # index
+  local i="$1" name="${C_NAME[$1]}" sha="${C_SHA[$1]}"
+  [ "${C_REMOTE[$i]}" = 1 ] || return 0
+  if [ "${C_MINE[$i]}" != 1 ]; then
+    echo "  ${DIM}• kept remote${X} origin/$name ${DIM}(not yours — local deleted only)${X}"
+    return 0
+  fi
+  confirm "  also delete remote origin/$name (yours)?" || { echo "  ${DIM}• kept remote${X} origin/$name"; return 0; }
+  if git push origin --delete "$name" >/dev/null 2>&1; then
+    RESTORE+=("git push origin $sha:refs/heads/$name")
+    echo "  ${G}✓ deleted remote${X} origin/$name"
+  else
+    echo "  ${Y}! could not delete remote${X} origin/$name"
   fi
 }
 
@@ -211,9 +220,8 @@ case "$mode" in
   dryrun)
     echo
     echo "Dry-run only — nothing deleted. Choose how to proceed:"
-    echo "  ${BOLD}delete-finished-branches --merged${X}   delete the ${G}safe${X} (merged) branches, one confirm"
-    echo "  ${BOLD}delete-finished-branches -i${X}         review and decide each branch interactively"
-    echo "  add ${BOLD}--include-remote${X} to also delete the origin copy of merged branches"
+    echo "  ${BOLD}delete-finished-branches --merged${X}   delete the ${G}safe${X} (merged) branches locally, one confirm"
+    echo "  ${BOLD}delete-finished-branches -i${X}         review each branch; when the remote is yours, offer to delete origin too"
     ;;
 
   merged)
@@ -223,11 +231,11 @@ case "$mode" in
     done
     if [ "${#idx[@]}" -eq 0 ]; then echo; echo "No merged branches to delete."; exit 0; fi
     echo
-    echo "${BOLD}Will delete these ${#idx[@]} merged branch(es)${X}$([ "$include_remote" = 1 ] && echo " (and their origin copies)"):"
+    echo "${BOLD}Will delete these ${#idx[@]} merged branch(es)${X} (local only — use ${BOLD}-i${X} to also drop the origin copy):"
     for i in "${idx[@]}"; do echo "  ${G}●${X} ${C_NAME[$i]}"; done
     echo
     if confirm "Proceed?"; then
-      for i in "${idx[@]}"; do do_delete "${C_NAME[$i]}" "${C_SHA[$i]}" "${C_CLASS[$i]}" "${C_REMOTE[$i]}" "${C_MINE[$i]}"; done
+      for i in "${idx[@]}"; do do_delete "${C_NAME[$i]}" "${C_SHA[$i]}"; done
       print_restore_hint
     else
       echo "Aborted."
@@ -238,6 +246,7 @@ case "$mode" in
     [ "$total" -eq 0 ] && { echo; echo "No deletable branches."; exit 0; }
     echo
     echo "Interactive — for each: [d]elete  [s]kip  [q]uit. Risky ones need the name typed."
+    echo "${DIM}After a local delete, if the origin copy is yours you'll be asked before it's removed.${X}"
     for i in "${!C_NAME[@]}"; do
       b="${C_NAME[$i]}"; cls="${C_CLASS[$i]}"
       echo
@@ -246,12 +255,12 @@ case "$mode" in
         OPENPR | UNMERGED)
           echo "  ${R}⚠ risky${X} — this would lose work or close a PR."
           ans=""; read -r -p "  type the branch name to delete, or Enter to skip: " ans || ans=""
-          if [ "$ans" = "$b" ]; then do_delete "$b" "${C_SHA[$i]}" "$cls" "${C_REMOTE[$i]}" "${C_MINE[$i]}"; else echo "  skipped."; fi
+          if [ "$ans" = "$b" ]; then do_delete "$b" "${C_SHA[$i]}" && offer_remote "$i"; else echo "  skipped."; fi
           ;;
         *)
           ans=""; read -r -p "  [d]elete / [s]kip / [q]uit: " ans || ans=""
           case "$ans" in
-            d | D) do_delete "$b" "${C_SHA[$i]}" "$cls" "${C_REMOTE[$i]}" "${C_MINE[$i]}" ;;
+            d | D) do_delete "$b" "${C_SHA[$i]}" && offer_remote "$i" ;;
             q | Q) break ;;
             *)     echo "  skipped." ;;
           esac
