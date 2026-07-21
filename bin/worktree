@@ -9,15 +9,26 @@
 # Each worktree gets:
 #   - its own directory (sibling of the repo) on its own branch
 #   - its own node_modules (yarn install) — skipped if no package.json
-#   - its own database (<repo>_<slug>) via bin/rails db:prepare — skipped if no bin/rails
-#   - a per-worktree .env pinning PORT + the DB env var (dotenv-rails picks the
-#     DB up automatically for every rails command in that worktree)
+#   - its own dev + test databases (<repo>_<slug> and <repo>_<slug>_test) via
+#     bin/rails db:prepare — skipped if no bin/rails. If the repo uses the
+#     parallel_tests gem, the per-worker test DBs (<repo>_<slug>_test2..N) are
+#     created too via parallel:prepare and dropped on `rm` via parallel:drop.
+#   - a per-worktree .env pinning PORT + the dev/test DB env vars (dotenv-rails
+#     picks the DBs up automatically for every rails command in that worktree)
 #   - an auto-picked free PORT base
 #
+# Test-DB isolation matters: in development `db:drop`/`db:create` act on BOTH the
+# dev and the test database. Isolating the test DB per worktree (rather than
+# sharing one <repo>_test) is what stops `worktree rm` from dropping a test DB
+# that other worktrees / the main checkout are still using. For it to take
+# effect, the project's database.yml `test:` section must read $TEST_DATABASE_NAME
+# (or whatever WORKTREE_TEST_DB_ENV_VAR names).
+#
 # Config (override via env before calling, or a per-repo defaults block):
-#   WORKTREE_DB_ENV_VAR   env var your database.yml reads   (default: DEV_DATABASE_NAME)
-#   WORKTREE_RUN_CMD      command to start the dev stack    (default: bin/dev)
-#   WORKTREE_BASE_BRANCH  branch new work forks from        (default: auto-detected)
+#   WORKTREE_DB_ENV_VAR        env var database.yml reads for dev  (default: DEV_DATABASE_NAME)
+#   WORKTREE_TEST_DB_ENV_VAR   env var database.yml reads for test (default: TEST_DATABASE_NAME)
+#   WORKTREE_RUN_CMD           command to start the dev stack      (default: bin/dev)
+#   WORKTREE_BASE_BRANCH       branch new work forks from          (default: auto-detected)
 #
 # Base-branch resolution (when not passed as an arg): WORKTREE_BASE_BRANCH,
 # else origin's default branch (origin/HEAD), else main/master.
@@ -33,6 +44,7 @@ MAIN="$(git rev-parse --show-toplevel)"
 PARENT="$(dirname "$MAIN")"
 REPO_NAME="$(basename "$MAIN")"
 DB_ENV_VAR="${WORKTREE_DB_ENV_VAR:-DEV_DATABASE_NAME}"
+TEST_DB_ENV_VAR="${WORKTREE_TEST_DB_ENV_VAR:-TEST_DATABASE_NAME}"
 RUN_CMD="${WORKTREE_RUN_CMD:-bin/dev}"
 CANDIDATE_PORTS=(4000 5000 6000 7000 8000 9000)
 
@@ -77,11 +89,17 @@ pick_port() {
 # md5 of a path -> matches bin/dev's overmind socket hashing, so we can stop a stack.
 overmind_socket_for() { echo "/tmp/overmind-$(echo "$1" | md5 | cut -c1-8).sock"; }
 
+# True if the repo at <dir> uses the parallel_tests gem, in which case the test
+# suite spreads across per-worker DBs (<test_db>, <test_db>2, ... via the
+# TEST_ENV_NUMBER suffix in database.yml) that plain db:prepare/db:drop miss.
+uses_parallel_tests() { grep -qi 'parallel_tests' "$1/Gemfile.lock" 2>/dev/null; }
+
 cmd_new() {
   local name="${1:?usage: worktree new <name> [port] [base-branch]}"
   local slug; slug="$(slugify "$name")"
   local dir="$PARENT/${REPO_NAME}-$slug"
   local db="${REPO_NAME}_${slug//-/_}"
+  local test_db="${db}_test"
   local port="${2:-$(pick_port)}"
 
   # Refresh remote-tracking refs so an existing origin branch is detected
@@ -95,15 +113,18 @@ cmd_new() {
   echo "▶ worktree : $dir"
   echo "▶ branch   : $name (from $base)"
   echo "▶ database : $db  (via \$$DB_ENV_VAR)"
+  echo "▶ test db  : $test_db  (via \$$TEST_DB_ENV_VAR)"
   echo "▶ port     : $port"
 
   # Gate: spell out exactly what will happen, then let the user back out before
   # anything is created. Steps are conditional on what the repo actually has.
   echo "▶ steps    :"
   echo "    - create worktree + branch at the paths above"
-  echo "    - write .env (PORT + $DB_ENV_VAR)"
+  echo "    - write .env (PORT + $DB_ENV_VAR + $TEST_DB_ENV_VAR)"
   [ -f "$MAIN/package.json" ] && echo "    - yarn install"
-  [ -x "$MAIN/bin/rails" ]    && echo "    - bin/rails db:prepare (creates db $db)"
+  [ -x "$MAIN/bin/rails" ]    && echo "    - bin/rails db:prepare (creates dbs $db + $test_db)"
+  { [ -x "$MAIN/bin/rails" ] && uses_parallel_tests "$MAIN"; } && \
+    echo "    - bin/rails parallel:prepare (per-worker test dbs ${test_db}2..N)"
   echo ""
   read -r -p "Proceed? [y/N] " reply || reply=""
   case "$reply" in
@@ -125,7 +146,7 @@ cmd_new() {
     git worktree add -b "$name" "$dir" "$base"
   fi
 
-  { echo "PORT=$port"; echo "$DB_ENV_VAR=$db"; } > "$dir/.env"
+  { echo "PORT=$port"; echo "$DB_ENV_VAR=$db"; echo "$TEST_DB_ENV_VAR=$test_db"; } > "$dir/.env"
 
   if [ -f "$dir/package.json" ]; then
     echo "▶ yarn install..."
@@ -133,8 +154,13 @@ cmd_new() {
   fi
 
   if [ -x "$dir/bin/rails" ]; then
-    echo "▶ db:prepare ($db)..."
-    ( cd "$dir" && env "$DB_ENV_VAR=$db" bin/rails db:prepare >/dev/null )
+    echo "▶ db:prepare ($db + $test_db)..."
+    ( cd "$dir" && env "$DB_ENV_VAR=$db" "$TEST_DB_ENV_VAR=$test_db" bin/rails db:prepare >/dev/null )
+    if uses_parallel_tests "$dir"; then
+      echo "▶ parallel:prepare (per-worker test dbs)..."
+      ( cd "$dir" && env "$DB_ENV_VAR=$db" "$TEST_DB_ENV_VAR=$test_db" bin/rails parallel:prepare >/dev/null ) \
+        || echo "  (parallel:prepare skipped/failed - run it manually if you use parallel tests)"
+    fi
   fi
 
   echo ""
@@ -145,12 +171,13 @@ cmd_new() {
 
 cmd_ls() {
   git worktree list --porcelain | awk '/^worktree /{print $2}' | while read -r wt; do
-    port="-"; db="-"
+    port="-"; db="-"; test_db="-"
     if [ -f "$wt/.env" ]; then
       port="$(grep -E '^PORT=' "$wt/.env" | cut -d= -f2 || echo -)"
       db="$(grep -E "^${DB_ENV_VAR}=" "$wt/.env" | cut -d= -f2 || echo -)"
+      test_db="$(grep -E "^${TEST_DB_ENV_VAR}=" "$wt/.env" | cut -d= -f2 || echo -)"
     fi
-    printf "%-50s port=%-6s db=%s\n" "$wt" "${port:--}" "${db:--}"
+    printf "%-50s port=%-6s db=%-24s test_db=%s\n" "$wt" "${port:--}" "${db:--}" "${test_db:--}"
   done
 }
 
@@ -159,14 +186,22 @@ cmd_rm() {
   local slug; slug="$(slugify "$name")"
   local dir="$PARENT/${REPO_NAME}-$slug"
   local db="${REPO_NAME}_${slug//-/_}"
+  local test_db="${db}_test"
 
   if [ -d "$dir" ]; then
     echo "▶ stopping stack (if running)..."
     OVERMIND_SOCKET="$(overmind_socket_for "$dir")" overmind quit 2>/dev/null || true
     sleep 1
     if [ -x "$dir/bin/rails" ]; then
-      echo "▶ dropping database $db..."
-      ( cd "$dir" && env "$DB_ENV_VAR=$db" bin/rails db:drop >/dev/null 2>&1 ) || echo "  (db drop skipped/failed - drop manually)"
+      if uses_parallel_tests "$dir"; then
+        echo "▶ dropping per-worker test dbs (parallel:drop)..."
+        ( cd "$dir" && env "$DB_ENV_VAR=$db" "$TEST_DB_ENV_VAR=$test_db" bin/rails parallel:drop >/dev/null 2>&1 ) \
+          || echo "  (parallel:drop skipped/failed - drop the numbered test dbs manually)"
+      fi
+      echo "▶ dropping databases $db + $test_db..."
+      # Both dev + test are isolated to this worktree, so db:drop (which in
+      # development targets both) can't reach a shared test DB.
+      ( cd "$dir" && env "$DB_ENV_VAR=$db" "$TEST_DB_ENV_VAR=$test_db" bin/rails db:drop >/dev/null 2>&1 ) || echo "  (db drop skipped/failed - drop manually)"
     fi
     echo "▶ removing worktree..."
     git worktree remove "$dir" --force
@@ -177,9 +212,55 @@ cmd_rm() {
   echo "✅ removed worktree, branch, and db for '$name'"
 }
 
+# Printed when called with no/unknown args or -h/--help. Keep this the single
+# source of truth for "how do I call this" — subcommand list, args, examples.
+usage() {
+  cat <<'EOF'
+worktree — spin up / tear down isolated per-ticket git worktrees.
+
+Run from inside any git repo. Each worktree gets its own directory, branch,
+node_modules, dev + test databases, and a free port — so tickets don't collide.
+
+USAGE
+  worktree <command> [args]
+
+COMMANDS
+  new <name> [port] [base-branch]
+      Create a worktree at ../<repo>-<name> on branch <name>, with its own dev +
+      test databases (<repo>_<name> and <repo>_<name>_test; plus per-worker
+      copies if the repo uses parallel_tests), node_modules, and a
+      per-worktree .env pinning PORT + the DB env vars. Prompts before doing
+      anything. If <name> already exists (locally or on origin) it's checked out;
+      otherwise it's created from [base-branch].
+        port         optional; auto-picked from a free candidate if omitted
+        base-branch  optional; defaults to origin's default branch, else main/master
+      e.g.  worktree new PROJ-123-fix-header
+            worktree new PROJ-123-fix-header 5000
+            worktree new hotfix 5000 main
+
+  ls
+      List all worktrees with their pinned port, dev db, and test db.
+      e.g.  worktree ls
+
+  rm <name>
+      Stop the worktree's stack, drop its dev + test databases (including the
+      parallel_tests per-worker copies, if any), then remove the worktree and
+      delete its branch.
+      e.g.  worktree rm PROJ-123-fix-header
+
+CONFIG (override via env before calling)
+  WORKTREE_DB_ENV_VAR        env var database.yml reads for dev  (default: DEV_DATABASE_NAME)
+  WORKTREE_TEST_DB_ENV_VAR   env var database.yml reads for test (default: TEST_DATABASE_NAME)
+  WORKTREE_RUN_CMD           command to start the dev stack      (default: bin/dev)
+  WORKTREE_BASE_BRANCH       branch new work forks from          (default: auto-detected)
+EOF
+}
+
 case "${1:-}" in
-  new) shift; cmd_new "$@" ;;
-  ls)  cmd_ls ;;
-  rm)  shift; cmd_rm "$@" ;;
-  *)   sed -n '3,30p' "$0"; exit 1 ;;
+  new)              shift; cmd_new "$@" ;;
+  ls)               cmd_ls ;;
+  rm)               shift; cmd_rm "$@" ;;
+  -h | --help | help) usage ;;
+  "")               usage; exit 1 ;;
+  *)                echo "worktree: unknown command '$1'" >&2; echo >&2; usage >&2; exit 1 ;;
 esac
