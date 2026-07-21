@@ -35,7 +35,7 @@
 #
 # Usage:
 #   worktree new <name> [port] [base-branch]   # create + set up   (base-branch default: auto-detected)
-#   worktree ls                                # list worktrees + port/db
+#   worktree ls                                # list worktrees (table: branch/port/db)
 #   worktree rm <name>                         # stop stack, remove worktree + branch + drop db
 #
 set -euo pipefail
@@ -170,15 +170,62 @@ cmd_new() {
 }
 
 cmd_ls() {
-  git worktree list --porcelain | awk '/^worktree /{print $2}' | while read -r wt; do
-    port="-"; db="-"; test_db="-"
-    if [ -f "$wt/.env" ]; then
-      port="$(grep -E '^PORT=' "$wt/.env" | cut -d= -f2 || echo -)"
-      db="$(grep -E "^${DB_ENV_VAR}=" "$wt/.env" | cut -d= -f2 || echo -)"
-      test_db="$(grep -E "^${TEST_DB_ENV_VAR}=" "$wt/.env" | cut -d= -f2 || echo -)"
-    fi
-    printf "%-50s port=%-6s db=%-24s test_db=%s\n" "$wt" "${port:--}" "${db:--}" "${test_db:--}"
+  # Colours only when writing to a terminal (matches delete-finished-branches).
+  local BOLD DIM X
+  if [ -t 1 ]; then BOLD=$'\033[1m'; DIM=$'\033[2m'; X=$'\033[0m'; else BOLD=""; DIM=""; X=""; fi
+
+  # Header first, then rows — collected so we can size every column to its widest
+  # cell before printing (a fixed width breaks the moment a path/db name is longer).
+  local -a NAME BRANCH PORT DB TDB
+  NAME=("WORKTREE"); BRANCH=("BRANCH"); PORT=("PORT"); DB=("DEV DB"); TDB=("TEST DB")
+
+  # Parse the porcelain stream block-by-block: each worktree is a `worktree <path>`
+  # line followed by `branch refs/heads/<name>` (or `detached`), blank-separated.
+  local wt="" br=""
+  while IFS= read -r line; do
+    case "$line" in
+      "worktree "*) wt="${line#worktree }" ;;
+      "branch "*)   br="${line#branch refs/heads/}" ;;
+      "detached")   br="(detached)" ;;
+      "")           [ -n "$wt" ] && ls_row "$wt" "$br"; wt=""; br="" ;;
+    esac
+  done < <(git worktree list --porcelain; echo)   # trailing blank flushes the last block
+
+  # Column widths = widest cell in each column (header included).
+  local -a W=(0 0 0 0 0) i
+  for i in "${!NAME[@]}"; do
+    (( ${#NAME[$i]}   > W[0] )) && W[0]=${#NAME[$i]}
+    (( ${#BRANCH[$i]} > W[1] )) && W[1]=${#BRANCH[$i]}
+    (( ${#PORT[$i]}   > W[2] )) && W[2]=${#PORT[$i]}
+    (( ${#DB[$i]}     > W[3] )) && W[3]=${#DB[$i]}
+    (( ${#TDB[$i]}    > W[4] )) && W[4]=${#TDB[$i]}
   done
+
+  local fmt="%-${W[0]}s  %-${W[1]}s  %-${W[2]}s  %-${W[3]}s  %-${W[4]}s\n"
+  local total=$(( W[0] + W[1] + W[2] + W[3] + W[4] + 8 ))   # +8 for the 4 gaps of 2 spaces
+
+  printf "\n${BOLD}${fmt}${X}" "${NAME[0]}" "${BRANCH[0]}" "${PORT[0]}" "${DB[0]}" "${TDB[0]}"
+  printf "${DIM}%s${X}\n" "$(printf '%.0s─' $(seq 1 "$total"))"
+  for i in "${!NAME[@]}"; do
+    [ "$i" = 0 ] && continue   # skip the header we already printed
+    printf "$fmt" "${NAME[$i]}" "${BRANCH[$i]}" "${PORT[$i]}" "${DB[$i]}" "${TDB[$i]}"
+  done
+  echo
+}
+
+# Append one worktree's cells to the parallel ls arrays. Shows the dir basename
+# (the full path is redundant — every worktree is a sibling of the repo) and reads
+# the pinned PORT / dev db / test db from the worktree's .env ("-" when absent).
+ls_row() {   # dir branch
+  local dir="$1" branch="${2:--}" port="-" db="-" test_db="-"
+  if [ -f "$dir/.env" ]; then
+    # `|| true` so a missing key doesn't trip `set -e` via the failing pipeline;
+    # the ${var:--} fallback then turns the empty result into a "-".
+    port="$(grep -E '^PORT=' "$dir/.env" | cut -d= -f2 || true)";              port="${port:--}"
+    db="$(grep -E "^${DB_ENV_VAR}=" "$dir/.env" | cut -d= -f2 || true)";       db="${db:--}"
+    test_db="$(grep -E "^${TEST_DB_ENV_VAR}=" "$dir/.env" | cut -d= -f2 || true)"; test_db="${test_db:--}"
+  fi
+  NAME+=("$(basename "$dir")"); BRANCH+=("$branch"); PORT+=("$port"); DB+=("$db"); TDB+=("$test_db")
 }
 
 cmd_rm() {
@@ -239,7 +286,7 @@ COMMANDS
             worktree new hotfix 5000 main
 
   ls
-      List all worktrees with their pinned port, dev db, and test db.
+      List all worktrees as a table: branch, pinned port, dev db, and test db.
       e.g.  worktree ls
 
   rm <name>
