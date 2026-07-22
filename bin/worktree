@@ -122,6 +122,7 @@ cmd_new() {
   echo "    - create worktree + branch at the paths above"
   echo "    - write .env (PORT + $DB_ENV_VAR + $TEST_DB_ENV_VAR)"
   [ -f "$MAIN/package.json" ] && echo "    - yarn install"
+  [ -f "$MAIN/Gemfile" ]      && echo "    - bundle install into vendor/bundle (gems isolated from the shared gem home)"
   [ -x "$MAIN/bin/rails" ]    && echo "    - bin/rails db:prepare (creates dbs $db + $test_db)"
   { [ -x "$MAIN/bin/rails" ] && uses_parallel_tests "$MAIN"; } && \
     echo "    - bin/rails parallel:prepare (per-worker test dbs ${test_db}2..N)"
@@ -151,6 +152,35 @@ cmd_new() {
   if [ -f "$dir/package.json" ]; then
     echo "▶ yarn install..."
     ( cd "$dir" && yarn install >/dev/null 2>&1 )
+  fi
+
+  # Isolate this worktree's gems from the shared mise gem home. Multiple worktrees
+  # share one Ruby gem dir but each has its own Gemfile.lock, so a default/transitive
+  # gem bumped on one branch breaks the others with "already activated X, but your
+  # Gemfile requires Y" — e.g. one branch bumped erb and every other worktree's
+  # bin/rails blew up on load. A per-worktree vendor/bundle fixes it: the bundle path
+  # goes to .bundle/config (already gitignored by the repo), but the vendor/bundle/
+  # dir the gems install into is NOT — add `vendor/bundle/` to your global gitignore
+  # (~/.gitignore_global) so it never touches the repo or shows up for other users.
+  # Must run before db:prepare — once isolated, bin/rails needs gems installed here.
+  #
+  # DOCKER INTERACTION (LabMaster) — tradeoff accepted, see below:
+  #   The docker-compose dev stack bind-mounts the whole worktree (.:/app) and keeps
+  #   gems in a named volume (bundler_gems:/usr/local/bundle). This vendor/bundle
+  #   isolation is SAFE at runtime: the ruby image sets BUNDLE_APP_CONFIG=/usr/local/
+  #   bundle, so the container reads its bundler config from there and IGNORES the
+  #   bind-mounted /app/.bundle/config — BUNDLE_PATH:vendor/bundle never takes effect,
+  #   gems still load from the volume. Nothing breaks.
+  #   The one cost: LabMaster's .dockerignore does NOT exclude .bundle/ or vendor/, and
+  #   the Dockerfile does `COPY . /app`. So building an image FROM a worktree drags the
+  #   host's vendor/bundle (hundreds of MB of macOS gems) into the build context/image
+  #   — bloat + slower builds, but never a broken image (see BUNDLE_APP_CONFIG above).
+  #   LATER STEP (proper fix, benefits everyone): add `/.bundle` and `/vendor/bundle`
+  #   to LabMaster's .dockerignore. That's a shared repo change, not done here. For now
+  #   we accept the extra MB in the image rather than touch the repo.
+  if [ -f "$dir/Gemfile" ]; then
+    echo "▶ isolating gems (bundle path vendor/bundle) + bundle install..."
+    ( cd "$dir" && bundle config set --local path 'vendor/bundle' && bundle install >/dev/null )
   fi
 
   if [ -x "$dir/bin/rails" ]; then

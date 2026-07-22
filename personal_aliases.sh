@@ -47,8 +47,8 @@ alias matrix='iterm_profile "Matrix"'
 claude() {
   iterm_profile "Matrix"
   command claude "$@"
-  local status=$?
+  local ret=$?          # was: local status=$?  (status is read-only in zsh)
   iterm_profile "$ITERM_DEFAULT_PROFILE"
-  return $status
+  return $ret           # was: return $status
 }
 ##################################################
