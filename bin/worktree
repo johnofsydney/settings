@@ -50,6 +50,27 @@ CANDIDATE_PORTS=(4000 5000 6000 7000 8000 9000)
 
 slugify() { echo "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g'; }
 
+# Map a slug to the dev-database name (the test db is this + "_test").
+# PostgreSQL truncates identifiers at 63 bytes. The test db is the longest name
+# we generate, so the dev db must be <= 58 chars. The natural name is
+# <repo>_<slug-with-underscores>; when that overflows (long branch names — a slug
+# of ~48+ chars did it), truncate the slug body and append an 8-char md5 of the
+# FULL slug. That keeps names short, unique, and deterministic — cmd_rm recomputes
+# the exact same name, so teardown still finds the db. The names are ugly but the
+# dir + tracked branch keep the readable full name; only the db is hashed.
+db_base_for() {   # slug -> dev db name
+  local slug="$1"
+  local body="${slug//-/_}"
+  local name="${REPO_NAME}_${body}"
+  local max=58
+  [ "${#name}" -le "$max" ] && { echo "$name"; return; }
+  local hash; hash="$(echo -n "$slug" | md5 | cut -c1-8)"
+  local prefix="${REPO_NAME}_"
+  local keep=$(( max - ${#prefix} - 9 ))   # 9 = "_" + 8-char hash
+  local trimmed="${body:0:keep}"; trimmed="${trimmed%_}"   # no trailing "_"
+  echo "${prefix}${trimmed}_${hash}"
+}
+
 # True if <branch> exists locally or on origin.
 branch_exists() {
   git show-ref --verify --quiet "refs/heads/$1" ||
@@ -98,7 +119,7 @@ cmd_new() {
   local name="${1:?usage: worktree new <name> [port] [base-branch]}"
   local slug; slug="$(slugify "$name")"
   local dir="$PARENT/${REPO_NAME}-$slug"
-  local db="${REPO_NAME}_${slug//-/_}"
+  local db; db="$(db_base_for "$slug")"
   local test_db="${db}_test"
   local port="${2:-$(pick_port)}"
 
@@ -262,7 +283,7 @@ cmd_rm() {
   local name="${1:?usage: worktree rm <name>}"
   local slug; slug="$(slugify "$name")"
   local dir="$PARENT/${REPO_NAME}-$slug"
-  local db="${REPO_NAME}_${slug//-/_}"
+  local db; db="$(db_base_for "$slug")"
   local test_db="${db}_test"
 
   if [ -d "$dir" ]; then
