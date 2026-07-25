@@ -82,3 +82,33 @@ a custom folder or URL_ and select `iterm_preferences/`.
 - Prompts for a PostgreSQL major version (default `18`, or `skip`), then brew-installs `postgresql@<version>`, `redis`, `mise`.
 - Appends `mise activate` to `~/.zshrc` (fenced, so re-runs don't duplicate).
 - Starts the Postgres and Redis services.
+
+## Global commands (`bin/`)
+
+`bin/` is on `PATH` (via `my_extensions.sh`), so these run bare from any git repo.
+They're project-agnostic — repo name, db, and port are derived from the current toplevel.
+
+- `worktree new|ls|rm` — spin up / tear down isolated per-ticket git worktrees.
+- `dcop [base]` — rubocop the Ruby files changed vs the auto-detected base branch.
+- `dspec [base] [rspec args]` — rspec the specs affected by branch changes.
+- `backup-local-db [db_name]` — `pg_dump` the local `<dir>_development` db to a timestamped file in `tmp/`.
+- `delete-finished-branches` — review and delete finished branches, safely.
+
+### delete-finished-branches
+
+Dry-run by default: classifies every branch (merged into main? has a remote? open/merged
+PR? local-only commits?), prints a colour-coded table, and deletes nothing until asked.
+Protected mainlines, the current branch, and worktree-checked-out branches are always skipped.
+Every deletion is logged to `.git/deleted-branches.log` with a paste-to-undo restore command.
+
+```
+delete-finished-branches            # dry-run: show the table, do nothing
+delete-finished-branches --merged   # delete the clearly-merged branches locally (one confirm)
+delete-finished-branches -i         # interactive: decide each branch
+```
+
+Remote (`origin/<branch>`) deletion happens **only** in interactive mode, and **only when the
+remote copy is yours** — ownership is the PR author if a PR exists, otherwise every commit unique
+to the branch being yours. After a successful local delete, `-i` prompts before removing your
+origin copy; a remote that isn't yours is kept and reported. Override the protected mainlines with
+`PROTECTED_BRANCHES` (pipe-separated regex; default `main|master|staging|qa|develop`).

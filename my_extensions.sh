@@ -87,7 +87,8 @@ alias berc="bundle exec rails console"
 alias bers="bundle exec rails server"
 alias becop="bundle exec rubocop app/ spec/ --force-exclusion"
 
-alias cc="code-insiders ."
+alias cc="code ."
+alias ccc="code-insiders ."
 
 # python/pip: there's no bare `python` on modern macOS, so these just point at
 # python3/pip3. Safe today because mise doesn't manage Python here — REMOVE them

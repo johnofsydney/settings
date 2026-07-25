@@ -96,7 +96,7 @@
     { "name": "Something Different", "value": "#832561" },
     { "name": "Vue Green", "value": "#42b883" }
   ],
-  "peacock.surpriseMeOnStartup": false,
+  "peacock.surpriseMeOnStartup": true,
   "github.copilot.enable": {
     "*": true,
     "plaintext": false,
