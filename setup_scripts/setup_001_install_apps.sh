@@ -95,6 +95,7 @@ install_cask slack     # you know what this is
 install_cask fork      # Git GUI client
 install_cask obsidian  # knowledge management app
 install_cask orbstack  # Docker replacement for Apple Silicon
+install_cask stablyai/orca/orca # AI agentic development envirionment
 install_cask claude
 install_cask claude-code
 

@@ -17,7 +17,6 @@
 
     "source.fixAll.eslint": "explicit"
   },
-  "workbench.colorTheme": "Atom One Cyan Light",
   "workbench.sideBar.location": "left",
   "workbench.startupEditor": "newUntitledFile",
   "window.zoomLevel": 1,
@@ -318,5 +317,6 @@
   "completion": true
 },
   "codesnap.shutterAction": "copy",
-  "claudeCode.preferredLocation": "sidebar"
+  "claudeCode.preferredLocation": "sidebar",
+  "workbench.colorTheme": "Atom One Cyan Light"
 }
