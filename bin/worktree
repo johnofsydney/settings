@@ -8,7 +8,8 @@
 #
 # Each worktree gets:
 #   - its own directory (sibling of the repo) on its own branch
-#   - its own node_modules (yarn install) — skipped if no package.json
+#   - its own node_modules (yarn/pnpm/npm install, whichever lockfile is
+#     present) — skipped if no package.json
 #   - its own dev + test databases (<repo>_<slug>_development and
 #     <repo>_<slug>_test — same stem, environment suffix on both) via
 #     bin/rails db:prepare — skipped if no bin/rails. One dev db + one test db is
@@ -198,6 +199,38 @@ port_from_ticket() {   # name -> port | ""
 # md5 of a path -> matches bin/dev's overmind socket hashing, so we can stop a stack.
 overmind_socket_for() { echo "/tmp/overmind-$(echo "$1" | md5 | cut -c1-8).sock"; }
 
+# Pick the JS install command for a worktree dir based on its lockfile, so a
+# repo's actual package manager is respected instead of always assuming yarn.
+# Falls back gracefully when the preferred tool isn't on PATH (e.g. a fresh
+# machine with npm/corepack via mise but no standalone yarn/pnpm binary) —
+# corepack shims the exact version pinned in package.json's "packageManager"
+# field; if even corepack is missing, npm install is the last resort so the
+# step degrades instead of hard-failing. Sets globals PM_LABEL / PM_CMD.
+node_install_step() {   # dir -> sets PM_LABEL, PM_CMD
+  local dir="$1"
+  if [ -f "$dir/yarn.lock" ]; then
+    if command -v yarn >/dev/null 2>&1; then
+      PM_LABEL="yarn install"; PM_CMD=(yarn install)
+    elif command -v corepack >/dev/null 2>&1; then
+      PM_LABEL="corepack yarn install"; PM_CMD=(corepack yarn install)
+    else
+      PM_LABEL="npm install (no yarn/corepack found; yarn.lock present)"; PM_CMD=(npm install)
+    fi
+  elif [ -f "$dir/pnpm-lock.yaml" ]; then
+    if command -v pnpm >/dev/null 2>&1; then
+      PM_LABEL="pnpm install"; PM_CMD=(pnpm install)
+    elif command -v corepack >/dev/null 2>&1; then
+      PM_LABEL="corepack pnpm install"; PM_CMD=(corepack pnpm install)
+    else
+      PM_LABEL="npm install (no pnpm/corepack found; pnpm-lock.yaml present)"; PM_CMD=(npm install)
+    fi
+  elif [ -f "$dir/package-lock.json" ]; then
+    PM_LABEL="npm ci"; PM_CMD=(npm ci)
+  else
+    PM_LABEL="npm install"; PM_CMD=(npm install)
+  fi
+}
+
 cmd_new() {
   local name="${1:?usage: worktree new <name> [port] [base-branch]}"
   local slug; slug="$(slugify "$name")"
@@ -239,7 +272,10 @@ cmd_new() {
   echo "▶ steps    :"
   echo "    - create worktree + branch at the paths above"
   echo "    - write .env (PORT + $DB_ENV_VAR + $TEST_DB_ENV_VAR)"
-  [ -f "$MAIN/package.json" ] && echo "    - yarn install"
+  if [ -f "$MAIN/package.json" ]; then
+    node_install_step "$MAIN"
+    echo "    - $PM_LABEL"
+  fi
   [ -f "$MAIN/Gemfile" ]      && echo "    - bundle install into vendor/bundle (gems isolated from the shared gem home)"
   [ -x "$MAIN/bin/rails" ]    && echo "    - bin/rails db:prepare (creates dbs $db + $test_db)"
   echo ""
@@ -266,7 +302,8 @@ cmd_new() {
   { echo "PORT=$port"; echo "$DB_ENV_VAR=$db"; echo "$TEST_DB_ENV_VAR=$test_db"; } > "$dir/.env"
 
   if [ -f "$dir/package.json" ]; then
-    ( cd "$dir" && run_step "yarn install" -- yarn install )
+    node_install_step "$dir"
+    ( cd "$dir" && run_step "$PM_LABEL" -- "${PM_CMD[@]}" )
   fi
 
   # Isolate this worktree's gems from the shared mise gem home. Multiple worktrees
