@@ -9,10 +9,10 @@
 # Each worktree gets:
 #   - its own directory (sibling of the repo) on its own branch
 #   - its own node_modules (yarn install) — skipped if no package.json
-#   - its own dev + test databases (<repo>_<slug> and <repo>_<slug>_test) via
-#     bin/rails db:prepare — skipped if no bin/rails. If the repo uses the
-#     parallel_tests gem, the per-worker test DBs (<repo>_<slug>_test2..N) are
-#     created too via parallel:prepare and dropped on `rm` via parallel:drop.
+#   - its own dev + test databases (<repo>_<slug>_development and
+#     <repo>_<slug>_test — same stem, environment suffix on both) via
+#     bin/rails db:prepare — skipped if no bin/rails. One dev db + one test db is
+#     deliberate: no parallel_tests per-worker copies are created or dropped.
 #   - a per-worktree .env pinning PORT + the dev/test DB env vars (dotenv-rails
 #     picks the DBs up automatically for every rails command in that worktree)
 #   - a PORT: the ticket number from the name if usable+free (LMCP-1989 -> 1989),
@@ -118,23 +118,27 @@ run_step() {
   return "$rc"
 }
 
-# Map a slug to the dev-database name (the test db is this + "_test").
-# PostgreSQL truncates identifiers at 63 bytes. The test db is the longest name
-# we generate, so the dev db must be <= 58 chars. The natural name is
+# Map a slug to the database STEM. Both real db names are the stem plus an
+# environment suffix, so they read symmetrically:
+#   dev  = <stem>_development
+#   test = <stem>_test
+# PostgreSQL truncates identifiers at 63 bytes. "_development" (12 chars) is the
+# longer suffix, so the stem must be <= 51 chars. The natural stem is
 # <repo>_<slug-with-underscores>; when that overflows (long branch names — a slug
-# of ~48+ chars did it), truncate the slug body and append an 8-char md5 of the
+# of ~41+ chars does it), truncate the slug body and append an 8-char md5 of the
 # FULL slug. That keeps names short, unique, and deterministic — cmd_rm recomputes
-# the exact same name, so teardown still finds the db. The names are ugly but the
+# the exact same stem, so teardown still finds the dbs. The names are ugly but the
 # dir + tracked branch keep the readable full name; only the db is hashed.
-db_base_for() {   # slug -> dev db name
+db_stem_for() {   # slug -> db stem
   local slug="$1"
   local body="${slug//-/_}"
   local name="${REPO_NAME}_${body}"
-  local max=58
+  local max=51
   [ "${#name}" -le "$max" ] && { echo "$name"; return; }
   local hash; hash="$(echo -n "$slug" | md5 | cut -c1-8)"
   local prefix="${REPO_NAME}_"
   local keep=$(( max - ${#prefix} - 9 ))   # 9 = "_" + 8-char hash
+  [ "$keep" -lt 1 ] && keep=1              # pathological: repo name alone blows the budget
   local trimmed="${body:0:keep}"; trimmed="${trimmed%_}"   # no trailing "_"
   echo "${prefix}${trimmed}_${hash}"
 }
@@ -194,17 +198,13 @@ port_from_ticket() {   # name -> port | ""
 # md5 of a path -> matches bin/dev's overmind socket hashing, so we can stop a stack.
 overmind_socket_for() { echo "/tmp/overmind-$(echo "$1" | md5 | cut -c1-8).sock"; }
 
-# True if the repo at <dir> uses the parallel_tests gem, in which case the test
-# suite spreads across per-worker DBs (<test_db>, <test_db>2, ... via the
-# TEST_ENV_NUMBER suffix in database.yml) that plain db:prepare/db:drop miss.
-uses_parallel_tests() { grep -qi 'parallel_tests' "$1/Gemfile.lock" 2>/dev/null; }
-
 cmd_new() {
   local name="${1:?usage: worktree new <name> [port] [base-branch]}"
   local slug; slug="$(slugify "$name")"
   local dir="$PARENT/${REPO_NAME}-$slug"
-  local db; db="$(db_base_for "$slug")"
-  local test_db="${db}_test"
+  local stem; stem="$(db_stem_for "$slug")"
+  local db="${stem}_development"
+  local test_db="${stem}_test"
 
   # Port: an explicit arg wins; otherwise reuse the ticket number as the port
   # (memorable — the preview URL then matches the ticket) when it's usable and
@@ -242,8 +242,6 @@ cmd_new() {
   [ -f "$MAIN/package.json" ] && echo "    - yarn install"
   [ -f "$MAIN/Gemfile" ]      && echo "    - bundle install into vendor/bundle (gems isolated from the shared gem home)"
   [ -x "$MAIN/bin/rails" ]    && echo "    - bin/rails db:prepare (creates dbs $db + $test_db)"
-  { [ -x "$MAIN/bin/rails" ] && uses_parallel_tests "$MAIN"; } && \
-    echo "    - bin/rails parallel:prepare (per-worker test dbs ${test_db}2..N)"
   echo ""
   read -r -p "Proceed? [y/N] " reply || reply=""
   case "$reply" in
@@ -303,11 +301,6 @@ cmd_new() {
   if [ -x "$dir/bin/rails" ]; then
     ( cd "$dir" && run_step "db:prepare ($db + $test_db)" -- \
         env "$DB_ENV_VAR=$db" "$TEST_DB_ENV_VAR=$test_db" bin/rails db:prepare )
-    if uses_parallel_tests "$dir"; then
-      ( cd "$dir" && run_step "parallel:prepare (per-worker test dbs)" -- \
-          env "$DB_ENV_VAR=$db" "$TEST_DB_ENV_VAR=$test_db" bin/rails parallel:prepare ) \
-        || echo "  (parallel:prepare skipped/failed - run it manually if you use parallel tests)"
-    fi
   fi
 
   echo ""
@@ -535,8 +528,15 @@ remove_worktree() {   # dir branch
   local db test_db
   db="$(grep -E "^${DB_ENV_VAR}=" "$dir/.env" 2>/dev/null | cut -d= -f2 || true)"
   test_db="$(grep -E "^${TEST_DB_ENV_VAR}=" "$dir/.env" 2>/dev/null | cut -d= -f2 || true)"
-  [ -n "$db" ]      || db="$(db_base_for "$(slugify "$(basename "$dir")")")"
-  [ -n "$test_db" ] || test_db="${db}_test"
+  # Fallback when the worktree has no .env: recompute from the dir name. The dir is
+  # "<repo>-<slug>", so strip the repo prefix first — db_stem_for adds it back.
+  local stem=""
+  if [ -z "$db" ] || [ -z "$test_db" ]; then
+    local base; base="$(basename "$dir")"
+    stem="$(db_stem_for "$(slugify "${base#"${REPO_NAME}-"}")")"
+  fi
+  [ -n "$db" ]      || db="${stem}_development"
+  [ -n "$test_db" ] || test_db="${stem}_test"
 
   assess_removal "$dir" "$branch"
   echo
@@ -557,11 +557,6 @@ remove_worktree() {   # dir branch
   OVERMIND_SOCKET="$(overmind_socket_for "$dir")" overmind quit 2>/dev/null || true
   sleep 1
   if [ -x "$dir/bin/rails" ]; then
-    if uses_parallel_tests "$dir"; then
-      echo "▶ dropping per-worker test dbs (parallel:drop)..."
-      ( cd "$dir" && env "$DB_ENV_VAR=$db" "$TEST_DB_ENV_VAR=$test_db" bin/rails parallel:drop >/dev/null 2>&1 ) \
-        || echo "  (parallel:drop skipped/failed - drop the numbered test dbs manually)"
-    fi
     echo "▶ dropping databases $db + $test_db..."
     # Both dev + test are isolated to this worktree, so db:drop (which in
     # development targets both) can't reach a shared test DB.
@@ -667,8 +662,8 @@ USAGE
 COMMANDS
   new <name> [port] [base-branch]
       Create a worktree at ../<repo>-<name> on branch <name>, with its own dev +
-      test databases (<repo>_<name> and <repo>_<name>_test; plus per-worker
-      copies if the repo uses parallel_tests), node_modules, and a
+      test databases (<repo>_<name>_development and <repo>_<name>_test),
+      node_modules, and a
       per-worktree .env pinning PORT + the DB env vars. Prompts before doing
       anything. If <name> already exists (locally or on origin) it's checked out;
       otherwise it's created from [base-branch].
@@ -685,10 +680,9 @@ COMMANDS
 
   rm [<name> | -i]
       With a NAME: resolve it (by branch name, directory name, or <repo>-<slug>),
-      then — after a confirmation — stop its stack, drop its dev + test databases
-      (including the parallel_tests per-worker copies, if any), remove the worktree,
-      and delete its branch. With NO name (or -i): pick from an interactive numbered
-      menu that re-lists after each removal until you quit.
+      then — after a confirmation — stop its stack, drop its dev + test databases,
+      remove the worktree, and delete its branch. With NO name (or -i): pick from
+      an interactive numbered menu that re-lists after each removal until you quit.
       Safeguards: a branch with commits neither merged into mainline nor pushed to
       origin, or a worktree with uncommitted changes, is flagged (▲) and needs the
       branch name typed to confirm. A restore command for the branch is printed and
