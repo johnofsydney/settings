@@ -15,7 +15,8 @@
 #     created too via parallel:prepare and dropped on `rm` via parallel:drop.
 #   - a per-worktree .env pinning PORT + the dev/test DB env vars (dotenv-rails
 #     picks the DBs up automatically for every rails command in that worktree)
-#   - an auto-picked free PORT base
+#   - a PORT: the ticket number from the name if usable+free (LMCP-1989 -> 1989),
+#     else an auto-picked free candidate
 #
 # Test-DB isolation matters: in development `db:drop`/`db:create` act on BOTH the
 # dev and the test database. Isolating the test DB per worktree (rather than
@@ -36,11 +37,19 @@
 # Usage:
 #   worktree new <name> [port] [base-branch]   # create + set up   (base-branch default: auto-detected)
 #   worktree ls                                # list worktrees (table: branch/port/db)
-#   worktree rm <name>                         # stop stack, remove worktree + branch + drop db
+#   worktree rm [<name>|-i]                    # remove a worktree (menu if no name) + branch + drop db
+#   worktree print_path [<name>|-i]            # print a worktree's path (menu if no name); wrap to cd
 #
 set -euo pipefail
 
-MAIN="$(git rev-parse --show-toplevel)"
+trap '[ -t 1 ] && printf "\033[?25h"' EXIT INT TERM   # never leave the terminal cursor hidden
+
+# Anchor to the repo's MAIN worktree (the one holding the shared .git), NOT whichever
+# worktree we happen to be standing in. Deriving from --show-toplevel would bake the
+# current worktree's name into a new worktree's dir + db names whenever `new` is run
+# from inside another worktree — which is exactly what leaves an orphan that `rm` run
+# from elsewhere then can't find.
+MAIN="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
 PARENT="$(dirname "$MAIN")"
 REPO_NAME="$(basename "$MAIN")"
 DB_ENV_VAR="${WORKTREE_DB_ENV_VAR:-DEV_DATABASE_NAME}"
@@ -48,7 +57,66 @@ TEST_DB_ENV_VAR="${WORKTREE_TEST_DB_ENV_VAR:-TEST_DATABASE_NAME}"
 RUN_CMD="${WORKTREE_RUN_CMD:-bin/dev}"
 CANDIDATE_PORTS=(4000 5000 6000 7000 8000 9000)
 
+# Colours, only when stdout is a terminal (shared by the ls table + the rm menu).
+if [ -t 1 ]; then
+  BOLD=$'\033[1m'; DIM=$'\033[2m'; G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[31m'; X=$'\033[0m'
+else
+  BOLD=""; DIM=""; G=""; Y=""; R=""; X=""
+fi
+
 slugify() { echo "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g'; }
+
+# Ask a yes/no question; 0 if yes. Shared by the rm paths.
+confirm() {   # "prompt" -> 0 if yes
+  local ans; read -r -p "$1 [y/N] " ans || ans=""
+  case "$ans" in [yY] | [yY][eE][sS]) return 0 ;; *) return 1 ;; esac
+}
+
+# Run a slow step with a live spinner + elapsed timer:  run_step "<label>" -- <cmd...>
+# These steps (bundle/yarn/db:prepare) have no honest "% complete", so a spinner +
+# seconds is the right feedback: it shows the step is alive and how long it's taking
+# rather than a silent hang. The command's own chatter is captured to a temp log and
+# printed ONLY if it fails — so, unlike a bare `>/dev/null`, a real error (a failed
+# bundle/yarn/migrate) is surfaced instead of swallowed. No TTY (piped/CI): the
+# animation is dropped and it just prints one "done (Ns)" line.
+SPIN=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
+run_step() {
+  local label="$1"; shift
+  [ "${1:-}" = "--" ] && shift
+
+  local log; log="$(mktemp -t worktree-step)"
+  local start=$SECONDS rc=0
+
+  # Non-interactive: no animation, just run, time it, and dump output on failure.
+  if [ ! -t 1 ]; then
+    "$@" >"$log" 2>&1 || rc=$?
+    if [ "$rc" -eq 0 ]; then
+      echo "✓ $label (done, $((SECONDS - start))s)"
+    else
+      echo "✗ $label — FAILED (exit $rc):"; sed 's/^/    /' "$log"
+    fi
+    rm -f "$log"; return "$rc"
+  fi
+
+  # Interactive: animate a one-line spinner while the command runs in the background.
+  "$@" >"$log" 2>&1 &
+  local pid=$! i=0
+  printf '\033[?25l'                                            # hide cursor
+  while kill -0 "$pid" 2>/dev/null; do
+    printf '\r%s %s (%ds)\033[K' "${SPIN[i++ % ${#SPIN[@]}]}" "$label" "$((SECONDS - start))"
+    sleep 0.1
+  done
+  wait "$pid" || rc=$?
+  printf '\033[?25h'                                            # show cursor
+  if [ "$rc" -eq 0 ]; then
+    printf '\r✓ %s (%ds)\033[K\n' "$label" "$((SECONDS - start))"
+  else
+    printf '\r✗ %s (failed after %ds)\033[K\n' "$label" "$((SECONDS - start))"
+    sed 's/^/    /' "$log"
+  fi
+  rm -f "$log"
+  return "$rc"
+}
 
 # Map a slug to the dev-database name (the test db is this + "_test").
 # PostgreSQL truncates identifiers at 63 bytes. The test db is the longest name
@@ -97,14 +165,30 @@ used_ports() {
   done
 }
 
+# True if <port> is neither pinned by another worktree nor currently listening.
+port_free() {   # port -> 0 if free
+  local p="$1"
+  ! used_ports | grep -qx "$p" && ! lsof -nP -i ":$p" >/dev/null 2>&1
+}
+
 pick_port() {
-  local used; used="$(used_ports)"
   for p in "${CANDIDATE_PORTS[@]}"; do
-    if ! echo "$used" | grep -qx "$p" && ! lsof -nP -i ":$p" >/dev/null 2>&1; then
-      echo "$p"; return 0
-    fi
+    port_free "$p" && { echo "$p"; return 0; }
   done
   echo "ERROR: no free candidate port" >&2; return 1
+}
+
+# Derive a memorable port from the ticket number in a branch/worktree name, so
+# LMCP-1989 -> http://localhost:1989. Matches the first JIRA/Linear-style
+# <letters>-<digits> token (feature/LMCP-1989-i -> 1989, PROJ-123-x -> 123), and
+# only when it lands in the usable unprivileged range; otherwise echoes nothing so
+# the caller falls back to pick_port. Always returns 0 (keeps set -e happy).
+port_from_ticket() {   # name -> port | ""
+  local name="$1" num
+  num="$(printf '%s' "$name" | grep -oiE '[a-z]+-[0-9]+' | head -n1 | grep -oE '[0-9]+' | head -n1)" || true
+  [ -n "$num" ] || return 0
+  { [ "$num" -ge 1024 ] && [ "$num" -le 65535 ]; } && echo "$num"
+  return 0
 }
 
 # md5 of a path -> matches bin/dev's overmind socket hashing, so we can stop a stack.
@@ -121,7 +205,20 @@ cmd_new() {
   local dir="$PARENT/${REPO_NAME}-$slug"
   local db; db="$(db_base_for "$slug")"
   local test_db="${db}_test"
-  local port="${2:-$(pick_port)}"
+
+  # Port: an explicit arg wins; otherwise reuse the ticket number as the port
+  # (memorable — the preview URL then matches the ticket) when it's usable and
+  # free, else auto-pick a free candidate from CANDIDATE_PORTS.
+  local port="${2:-}" port_src="explicit"
+  if [ -z "$port" ]; then
+    local ticket_port; ticket_port="$(port_from_ticket "$name")"
+    if [ -n "$ticket_port" ] && port_free "$ticket_port"; then
+      port="$ticket_port"; port_src="from ticket number"
+    else
+      port="$(pick_port)"; port_src="auto-picked"
+      [ -n "$ticket_port" ] && port_src="auto-picked ($ticket_port from ticket is in use)"
+    fi
+  fi
 
   # Refresh remote-tracking refs so an existing origin branch is detected
   # (tolerant: don't fail the command if offline or there's no origin).
@@ -135,7 +232,7 @@ cmd_new() {
   echo "▶ branch   : $name (from $base)"
   echo "▶ database : $db  (via \$$DB_ENV_VAR)"
   echo "▶ test db  : $test_db  (via \$$TEST_DB_ENV_VAR)"
-  echo "▶ port     : $port"
+  echo "▶ port     : $port  ($port_src)"
 
   # Gate: spell out exactly what will happen, then let the user back out before
   # anything is created. Steps are conditional on what the repo actually has.
@@ -171,8 +268,7 @@ cmd_new() {
   { echo "PORT=$port"; echo "$DB_ENV_VAR=$db"; echo "$TEST_DB_ENV_VAR=$test_db"; } > "$dir/.env"
 
   if [ -f "$dir/package.json" ]; then
-    echo "▶ yarn install..."
-    ( cd "$dir" && yarn install >/dev/null 2>&1 )
+    ( cd "$dir" && run_step "yarn install" -- yarn install )
   fi
 
   # Isolate this worktree's gems from the shared mise gem home. Multiple worktrees
@@ -200,16 +296,16 @@ cmd_new() {
   #   to LabMaster's .dockerignore. That's a shared repo change, not done here. For now
   #   we accept the extra MB in the image rather than touch the repo.
   if [ -f "$dir/Gemfile" ]; then
-    echo "▶ isolating gems (bundle path vendor/bundle) + bundle install..."
-    ( cd "$dir" && bundle config set --local path 'vendor/bundle' && bundle install >/dev/null )
+    ( cd "$dir" && bundle config set --local path 'vendor/bundle' >/dev/null )   # instant, no spinner
+    ( cd "$dir" && run_step "isolating gems (vendor/bundle) + bundle install" -- bundle install )
   fi
 
   if [ -x "$dir/bin/rails" ]; then
-    echo "▶ db:prepare ($db + $test_db)..."
-    ( cd "$dir" && env "$DB_ENV_VAR=$db" "$TEST_DB_ENV_VAR=$test_db" bin/rails db:prepare >/dev/null )
+    ( cd "$dir" && run_step "db:prepare ($db + $test_db)" -- \
+        env "$DB_ENV_VAR=$db" "$TEST_DB_ENV_VAR=$test_db" bin/rails db:prepare )
     if uses_parallel_tests "$dir"; then
-      echo "▶ parallel:prepare (per-worker test dbs)..."
-      ( cd "$dir" && env "$DB_ENV_VAR=$db" "$TEST_DB_ENV_VAR=$test_db" bin/rails parallel:prepare >/dev/null ) \
+      ( cd "$dir" && run_step "parallel:prepare (per-worker test dbs)" -- \
+          env "$DB_ENV_VAR=$db" "$TEST_DB_ENV_VAR=$test_db" bin/rails parallel:prepare ) \
         || echo "  (parallel:prepare skipped/failed - run it manually if you use parallel tests)"
     fi
   fi
@@ -221,10 +317,6 @@ cmd_new() {
 }
 
 cmd_ls() {
-  # Colours only when writing to a terminal (matches delete-finished-branches).
-  local BOLD DIM X
-  if [ -t 1 ]; then BOLD=$'\033[1m'; DIM=$'\033[2m'; X=$'\033[0m'; else BOLD=""; DIM=""; X=""; fi
-
   # Header first, then rows — collected so we can size every column to its widest
   # cell before printing (a fixed width breaks the moment a path/db name is longer).
   local -a NAME BRANCH PORT DB TDB
@@ -279,35 +371,285 @@ ls_row() {   # dir branch
   NAME+=("$(basename "$dir")"); BRANCH+=("$branch"); PORT+=("$port"); DB+=("$db"); TDB+=("$test_db")
 }
 
-cmd_rm() {
-  local name="${1:?usage: worktree rm <name>}"
-  local slug; slug="$(slugify "$name")"
-  local dir="$PARENT/${REPO_NAME}-$slug"
-  local db; db="$(db_base_for "$slug")"
-  local test_db="${db}_test"
+# Refresh origin so the merged/pushed assessment is current, avoiding false 'risky'
+# flags from stale origin/* refs. Called once per rm invocation (not per worktree).
+# Tolerant: offline or no origin just proceeds with whatever refs are already local.
+fetch_origin() {
+  echo "${DIM}▶ fetching origin…${X}" >&2
+  git fetch --quiet origin 2>/dev/null || true
+}
 
-  if [ -d "$dir" ]; then
-    echo "▶ stopping stack (if running)..."
-    OVERMIND_SOCKET="$(overmind_socket_for "$dir")" overmind quit 2>/dev/null || true
-    sleep 1
-    if [ -x "$dir/bin/rails" ]; then
-      if uses_parallel_tests "$dir"; then
-        echo "▶ dropping per-worker test dbs (parallel:drop)..."
-        ( cd "$dir" && env "$DB_ENV_VAR=$db" "$TEST_DB_ENV_VAR=$test_db" bin/rails parallel:drop >/dev/null 2>&1 ) \
-          || echo "  (parallel:drop skipped/failed - drop the numbered test dbs manually)"
-      fi
-      echo "▶ dropping databases $db + $test_db..."
-      # Both dev + test are isolated to this worktree, so db:drop (which in
-      # development targets both) can't reach a shared test DB.
-      ( cd "$dir" && env "$DB_ENV_VAR=$db" "$TEST_DB_ENV_VAR=$test_db" bin/rails db:drop >/dev/null 2>&1 ) || echo "  (db drop skipped/failed - drop manually)"
+# The ref to test "is this branch already merged?" against — first that exists.
+# origin/* are local mirrors updated by fetch, so this is network-free (and may be
+# stale; a stale miss just makes us over-cautious, which is the safe direction).
+mainline_ref() {
+  local c
+  for c in origin/main origin/master main master; do
+    git rev-parse --verify --quiet "$c" >/dev/null && { echo "$c"; return; }
+  done
+}
+
+# Assess whether removing <dir>/<branch> would lose work. Sets globals:
+#   ASSESS_RISKY (0|1)  ASSESS_SHA  ASSESS_BRANCH_NOTE  ASSESS_WORK_NOTE
+# Risky = the branch has commits neither merged into mainline nor pushed to origin,
+# OR the working tree has uncommitted changes (which --force would discard).
+assess_removal() {   # dir branch
+  local dir="$1" branch="$2"
+  ASSESS_RISKY=0; ASSESS_SHA=""; ASSESS_BRANCH_NOTE=""; ASSESS_WORK_NOTE=""
+  local main; main="$(mainline_ref)"
+  [ -n "$branch" ] && ASSESS_SHA="$(git rev-parse --verify --quiet "$branch" 2>/dev/null || true)"
+
+  if [ -z "$branch" ]; then
+    ASSESS_BRANCH_NOTE="${DIM}detached HEAD${X}"
+  elif [ -n "$main" ] && git merge-base --is-ancestor "$ASSESS_SHA" "$main" 2>/dev/null; then
+    ASSESS_BRANCH_NOTE="${G}merged into ${main#origin/}${X}"
+  elif git rev-parse --verify --quiet "origin/$branch" >/dev/null 2>&1; then
+    local ahead; ahead="$(git rev-list --count "origin/$branch..$ASSESS_SHA" 2>/dev/null || echo 0)"
+    if [ "$ahead" = 0 ]; then
+      ASSESS_BRANCH_NOTE="${G}pushed to origin${X}"
+    else
+      ASSESS_BRANCH_NOTE="${R}$ahead commit(s) not pushed — would be lost${X}"; ASSESS_RISKY=1
     fi
-    echo "▶ removing worktree..."
-    git worktree remove "$dir" --force
   else
-    echo "  (no dir at $dir; pruning)"; git worktree prune
+    if [ -n "$main" ]; then
+      local only; only="$(git rev-list --count "$main..$ASSESS_SHA" 2>/dev/null || echo '?')"
+      ASSESS_BRANCH_NOTE="${R}not on origin — $only commit(s) only here${X}"
+    else
+      ASSESS_BRANCH_NOTE="${R}not on origin — would be lost${X}"
+    fi
+    ASSESS_RISKY=1
   fi
-  git branch -D "$name" 2>/dev/null || true
-  echo "✅ removed worktree, branch, and db for '$name'"
+
+  local dirty; dirty="$(git -C "$dir" status --porcelain 2>/dev/null | wc -l | tr -d ' ' || true)"
+  if [ "${dirty:-0}" -gt 0 ]; then
+    ASSESS_WORK_NOTE="${R}$dirty uncommitted change(s) — would be discarded${X}"; ASSESS_RISKY=1
+  else
+    ASSESS_WORK_NOTE="${G}clean${X}"
+  fi
+}
+
+# Populate WT_* parallel arrays with every worktree EXCEPT the main checkout, reading
+# each one's pinned port from its .env. Feeds the interactive rm menu.
+gather_worktrees() {   # [all] — pass "all" to include the main checkout (marked via WT_ISMAIN)
+  local include_main="${1:-}"
+  WT_DIR=(); WT_BRANCH=(); WT_PORT=(); WT_ISMAIN=()
+  local wt="" br=""
+  while IFS= read -r line; do
+    case "$line" in
+      "worktree "*) wt="${line#worktree }" ;;
+      "branch "*)   br="${line#branch refs/heads/}" ;;
+      "detached")   br="" ;;
+      "")
+        if [ -n "$wt" ]; then
+          local ismain=0; [ "$wt" = "$MAIN" ] && ismain=1
+          if [ "$ismain" = 0 ] || [ "$include_main" = all ]; then
+            local port="-"
+            [ -f "$wt/.env" ] && { port="$(grep -E '^PORT=' "$wt/.env" | cut -d= -f2 || true)"; port="${port:--}"; }
+            WT_DIR+=("$wt"); WT_BRANCH+=("$br"); WT_PORT+=("$port"); WT_ISMAIN+=("$ismain")
+          fi
+        fi
+        wt=""; br="" ;;
+    esac
+  done < <(git worktree list --porcelain; echo)
+}
+
+# Render the gathered worktrees (WT_* arrays) as a numbered, column-sized table like
+# `ls`. mode=rm adds a risk dot + coloured STATE column (from assess_removal); mode=go
+# omits it. STATE is the trailing column, so its colour codes never break alignment.
+print_picker() {   # mode: rm|go
+  local mode="$1" i
+  local -a NUM NAME BR PORT STATE
+  NUM=("#"); NAME=("WORKTREE"); BR=("BRANCH"); PORT=("PORT"); STATE=("STATE")
+  for i in "${!WT_DIR[@]}"; do
+    local nm; nm="$(basename "${WT_DIR[$i]}")"
+    [ "${WT_ISMAIN[$i]:-0}" = 1 ] && nm="$nm (main)"
+    NUM+=("$((i + 1))"); NAME+=("$nm"); BR+=("${WT_BRANCH[$i]:-(detached)}"); PORT+=("${WT_PORT[$i]}")
+    if [ "$mode" = rm ]; then
+      assess_removal "${WT_DIR[$i]}" "${WT_BRANCH[$i]}"
+      local dot="${G}●${X}"; [ "$ASSESS_RISKY" = 1 ] && dot="${R}▲${X}"
+      STATE+=("$dot $ASSESS_BRANCH_NOTE${DIM} · ${X}$ASSESS_WORK_NOTE")
+    fi
+  done
+
+  # Widths of the plain-text columns (STATE is coloured + last, so left free).
+  local -a W=(0 0 0 0)
+  for i in "${!NUM[@]}"; do
+    (( ${#NUM[$i]}  > W[0] )) && W[0]=${#NUM[$i]}
+    (( ${#NAME[$i]} > W[1] )) && W[1]=${#NAME[$i]}
+    (( ${#BR[$i]}   > W[2] )) && W[2]=${#BR[$i]}
+    (( ${#PORT[$i]} > W[3] )) && W[3]=${#PORT[$i]}
+  done
+  local fmt="  %-${W[0]}s  %-${W[1]}s  %-${W[2]}s  %-${W[3]}s"
+  [ "$mode" = rm ] && fmt="$fmt  %s"
+  fmt="$fmt\n"
+  local rule; rule="$(printf '%.0s─' $(seq 1 $(( W[0] + W[1] + W[2] + W[3] + 8 ))))"
+
+  if [ "$mode" = rm ]; then
+    printf "${BOLD}${fmt}${X}" "${NUM[0]}" "${NAME[0]}" "${BR[0]}" "${PORT[0]}" "${STATE[0]}"
+  else
+    printf "${BOLD}${fmt}${X}" "${NUM[0]}" "${NAME[0]}" "${BR[0]}" "${PORT[0]}"
+  fi
+  printf "  ${DIM}%s${X}\n" "$rule"
+  for i in "${!NUM[@]}"; do
+    [ "$i" = 0 ] && continue
+    if [ "$mode" = rm ]; then
+      printf "$fmt" "${NUM[$i]}" "${NAME[$i]}" "${BR[$i]}" "${PORT[$i]}" "${STATE[$i]}"
+    else
+      printf "$fmt" "${NUM[$i]}" "${NAME[$i]}" "${BR[$i]}" "${PORT[$i]}"
+    fi
+  done
+}
+
+# Resolve a name to a worktree via git's OWN list, echoing "<dir>\t<branch>". Matches
+# the arg against the branch name, the directory basename, or the <repo>-<slug>
+# convention — so it still works when run from a different worktree than created it
+# (which changes REPO_NAME, and thus any recomputed path), or when the dir and branch
+# names have diverged. The main checkout never matches. Non-zero if nothing matched.
+resolve_worktree() {   # query -> "<dir>\t<branch>"
+  local query="$1" slug; slug="$(slugify "$query")"
+  local conv_base="${REPO_NAME}-$slug"
+  local wt="" br=""
+  while IFS= read -r line; do
+    case "$line" in
+      "worktree "*) wt="${line#worktree }" ;;
+      "branch "*)   br="${line#branch refs/heads/}" ;;
+      "detached")   br="" ;;
+      "")
+        if [ -n "$wt" ] && [ "$wt" != "$MAIN" ]; then
+          local base; base="$(basename "$wt")"
+          if [ "$br" = "$query" ] || [ "$base" = "$query" ] || [ "$base" = "$conv_base" ]; then
+            printf '%s\t%s\n' "$wt" "$br"; return 0
+          fi
+        fi
+        wt=""; br="" ;;
+    esac
+  done < <(git worktree list --porcelain; echo)
+  return 1
+}
+
+# Tear down one already-resolved worktree: confirm, stop its stack, drop its dev+test
+# dbs (names read from the worktree's own .env — authoritative), remove the worktree,
+# delete its branch, and report ONLY what actually happened. Returns 1 if declined.
+remove_worktree() {   # dir branch
+  local dir="$1" branch="$2"
+  local db test_db
+  db="$(grep -E "^${DB_ENV_VAR}=" "$dir/.env" 2>/dev/null | cut -d= -f2 || true)"
+  test_db="$(grep -E "^${TEST_DB_ENV_VAR}=" "$dir/.env" 2>/dev/null | cut -d= -f2 || true)"
+  [ -n "$db" ]      || db="$(db_base_for "$(slugify "$(basename "$dir")")")"
+  [ -n "$test_db" ] || test_db="${db}_test"
+
+  assess_removal "$dir" "$branch"
+  echo
+  echo "▶ worktree : $dir"
+  echo "▶ branch   : ${branch:-(detached)}  ${DIM}·${X} $ASSESS_BRANCH_NOTE"
+  echo "▶ state    : $ASSESS_WORK_NOTE"
+  echo "▶ databases: $db + $test_db"
+  if [ "$ASSESS_RISKY" = 1 ]; then
+    echo "${R}▲ Removing this will permanently lose the work flagged above.${X}"
+    local target="${branch:-$(basename "$dir")}" ans
+    read -r -p "Type '$target' to confirm removal, or Enter to abort: " ans || ans=""
+    [ "$ans" = "$target" ] || { echo "Aborted."; return 1; }
+  else
+    confirm "Remove this worktree, delete the branch, and drop these dbs?" || { echo "Aborted."; return 1; }
+  fi
+
+  echo "▶ stopping stack (if running)..."
+  OVERMIND_SOCKET="$(overmind_socket_for "$dir")" overmind quit 2>/dev/null || true
+  sleep 1
+  if [ -x "$dir/bin/rails" ]; then
+    if uses_parallel_tests "$dir"; then
+      echo "▶ dropping per-worker test dbs (parallel:drop)..."
+      ( cd "$dir" && env "$DB_ENV_VAR=$db" "$TEST_DB_ENV_VAR=$test_db" bin/rails parallel:drop >/dev/null 2>&1 ) \
+        || echo "  (parallel:drop skipped/failed - drop the numbered test dbs manually)"
+    fi
+    echo "▶ dropping databases $db + $test_db..."
+    # Both dev + test are isolated to this worktree, so db:drop (which in
+    # development targets both) can't reach a shared test DB.
+    ( cd "$dir" && env "$DB_ENV_VAR=$db" "$TEST_DB_ENV_VAR=$test_db" bin/rails db:drop >/dev/null 2>&1 ) \
+      || echo "  (db drop skipped/failed - drop manually: dropdb '$db'; dropdb '$test_db')"
+  else
+    echo "  (no bin/rails at $dir — skipping db drop; if needed: dropdb '$db'; dropdb '$test_db')"
+  fi
+  echo "▶ removing worktree..."
+  git worktree remove "$dir" --force
+  if [ -n "$branch" ]; then
+    git branch -D "$branch" 2>/dev/null || echo "  (couldn't delete branch '$branch' - delete it manually)"
+  fi
+  echo "${G}✅ removed worktree${X}${branch:+, branch '$branch',} and dbs ($db, $test_db)"
+  # Log + print a one-paste restore for the branch ref (its commits survive in the
+  # object store until git gc, so this recreates the branch pointing at the same tip).
+  if [ -n "$branch" ] && [ -n "$ASSESS_SHA" ]; then
+    printf '%s  %s  %s\n' "$(date '+%F %T')" "$branch" "$ASSESS_SHA" >> "$MAIN/.git/worktree-removed.log" 2>/dev/null || true
+    echo "${DIM}   restore the branch if needed:  git branch '$branch' $ASSESS_SHA${X}"
+  fi
+}
+
+# Interactive picker: list the worktrees (numbered), remove the chosen one, then loop
+# with a refreshed list until you quit. Reached by `worktree rm` with no name (or -i).
+interactive_rm() {
+  while :; do
+    gather_worktrees
+    local n="${#WT_DIR[@]}"
+    if [ "$n" -eq 0 ]; then
+      echo; echo "No removable worktrees — only the main checkout ($MAIN) remains."; return 0
+    fi
+    print_picker rm
+    echo "  ${G}●${X}${DIM} safe · ${R}▲${X}${DIM} risky (unpushed commits / uncommitted changes) · ${BOLD}q${X}${DIM} quit${X}"
+    local sel; read -r -p "› remove which? " sel || sel="q"
+    case "$sel" in
+      q | Q | "") echo "Done."; return 0 ;;
+      *[!0-9]* | 0) echo "  ${Y}enter a number from the list, or q${X}" ;;
+      *)
+        if [ "$sel" -le "$n" ]; then
+          remove_worktree "${WT_DIR[$((sel - 1))]}" "${WT_BRANCH[$((sel - 1))]}" || true
+        else
+          echo "  ${Y}$sel is out of range (1-$n)${X}"
+        fi
+        ;;
+    esac
+  done
+}
+
+cmd_rm() {
+  fetch_origin   # once, up front, so every assessment below sees current origin/* refs
+
+  # No name (or -i) → interactive menu; otherwise resolve the given name directly.
+  if [ $# -eq 0 ] || [ "${1:-}" = "-i" ] || [ "${1:-}" = "--interactive" ]; then
+    interactive_rm; return
+  fi
+
+  local resolved; resolved="$(resolve_worktree "$1")" || {
+    echo "✗ no worktree matches '$1' — nothing removed."
+    echo "  Run 'worktree ls', or 'worktree rm' with no name to pick from a menu."
+    git worktree prune   # tidy any stale admin entries while we're here
+    return 1
+  }
+  remove_worktree "${resolved%%$'\t'*}" "${resolved#*$'\t'}"
+}
+
+# Print the directory of a chosen worktree, so a shell wrapper can cd into it (a script
+# can't change the parent shell's dir itself). Only the chosen PATH goes to stdout; the
+# menu + prompts go to stderr — that's what lets `cd "$(worktree print_path)"` work. With a
+# NAME it resolves directly (the main checkout included); with none (or -i) it shows an
+# interactive picker of ALL worktrees.
+cmd_print_path() {
+  if [ $# -gt 0 ] && [ "$1" != "-i" ] && [ "$1" != "--interactive" ]; then
+    if [ "$1" = "$(basename "$MAIN")" ] || [ "$1" = main ]; then printf '%s\n' "$MAIN"; return 0; fi
+    local resolved; resolved="$(resolve_worktree "$1")" || { echo "✗ no worktree matches '$1'." >&2; return 1; }
+    printf '%s\n' "${resolved%%$'\t'*}"; return 0
+  fi
+
+  gather_worktrees all
+  local n="${#WT_DIR[@]}"
+  [ "$n" -eq 0 ] && { echo "No worktrees." >&2; return 1; }
+  print_picker plain >&2
+  printf "  ${DIM}%s${X}\n" "q  quit" >&2
+  local sel; read -r -p "› which worktree? " sel || sel="q"
+  case "$sel" in
+    q | Q | "")   return 1 ;;
+    *[!0-9]* | 0) echo "  not a number." >&2; return 1 ;;
+    *) if [ "$sel" -le "$n" ]; then printf '%s\n' "${WT_DIR[$((sel - 1))]}"; else echo "  out of range (1-$n)." >&2; return 1; fi ;;
+  esac
 }
 
 # Printed when called with no/unknown args or -h/--help. Keep this the single
@@ -330,7 +672,8 @@ COMMANDS
       per-worktree .env pinning PORT + the DB env vars. Prompts before doing
       anything. If <name> already exists (locally or on origin) it's checked out;
       otherwise it's created from [base-branch].
-        port         optional; auto-picked from a free candidate if omitted
+        port         optional; defaults to the ticket number in <name> (LMCP-1989
+                     -> 1989) when that's a usable free port, else auto-picked
         base-branch  optional; defaults to origin's default branch, else main/master
       e.g.  worktree new PROJ-123-fix-header
             worktree new PROJ-123-fix-header 5000
@@ -340,11 +683,26 @@ COMMANDS
       List all worktrees as a table: branch, pinned port, dev db, and test db.
       e.g.  worktree ls
 
-  rm <name>
-      Stop the worktree's stack, drop its dev + test databases (including the
-      parallel_tests per-worker copies, if any), then remove the worktree and
-      delete its branch.
+  rm [<name> | -i]
+      With a NAME: resolve it (by branch name, directory name, or <repo>-<slug>),
+      then — after a confirmation — stop its stack, drop its dev + test databases
+      (including the parallel_tests per-worker copies, if any), remove the worktree,
+      and delete its branch. With NO name (or -i): pick from an interactive numbered
+      menu that re-lists after each removal until you quit.
+      Safeguards: a branch with commits neither merged into mainline nor pushed to
+      origin, or a worktree with uncommitted changes, is flagged (▲) and needs the
+      branch name typed to confirm. A restore command for the branch is printed and
+      logged to <main>/.git/worktree-removed.log.
       e.g.  worktree rm PROJ-123-fix-header
+            worktree rm                     # interactive menu
+
+  print_path [<name> | -i]
+      Print the directory of a worktree (with a NAME) or pick one from an interactive
+      menu (no name). Prints ONLY the path to stdout, so wrap it in a shell function
+      to cd there — a script can't change your shell's directory itself:
+          wt() { local d; d="$(worktree print_path "$@")" && cd "$d"; }
+      Then:  wt              # menu, then cd into the choice
+             wt LMCP-1989    # cd straight there
 
 CONFIG (override via env before calling)
   WORKTREE_DB_ENV_VAR        env var database.yml reads for dev  (default: DEV_DATABASE_NAME)
@@ -358,6 +716,7 @@ case "${1:-}" in
   new)              shift; cmd_new "$@" ;;
   ls)               cmd_ls ;;
   rm)               shift; cmd_rm "$@" ;;
+  print_path)       shift; cmd_print_path "$@" ;;
   -h | --help | help) usage ;;
   "")               usage; exit 1 ;;
   *)                echo "worktree: unknown command '$1'" >&2; echo >&2; usage >&2; exit 1 ;;

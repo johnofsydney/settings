@@ -130,6 +130,11 @@ gch() {
 
 alias ch=gch
 
+# Jump into a git worktree: `wt` (interactive menu) or `wt <name>`. Wraps the
+# `worktree print_path` subcommand, whose only stdout is the chosen path (its menu +
+# prompts go to stderr) — a script can't cd the parent shell, so this function does it.
+wt() { local d; d="$(worktree print_path "$@")" && cd "$d"; }
+
 # zsh-syntax-highlighting (brew formula, installed by setup_001). $HOMEBREW_PREFIX
 # is set by `brew shellenv` in ~/.zprofile; fall back to the Apple-silicon default
 # so this also works on Intel. Guarded so a missing plugin doesn't error every shell.
