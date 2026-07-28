@@ -18,6 +18,9 @@
 #     picks the DBs up automatically for every rails command in that worktree)
 #   - a PORT: the ticket number from the name if usable+free (LMCP-1989 -> 1989),
 #     else an auto-picked free candidate
+#   - for vite_ruby repos (config/vite.json present): a VITE_RUBY_PORT in the same
+#     .env, since vite.json hardcodes one dev-server port for every checkout and
+#     concurrent worktrees running bin/dev would otherwise fight over it
 #
 # Test-DB isolation matters: in development `db:drop`/`db:create` act on BOTH the
 # dev and the test database. Isolating the test DB per worktree (rather than
@@ -183,6 +186,34 @@ pick_port() {
   echo "ERROR: no free candidate port" >&2; return 1
 }
 
+# Vite ports already pinned by existing worktrees' .env files.
+used_vite_ports() {
+  git worktree list --porcelain | awk '/^worktree /{print $2}' | while read -r wt; do
+    [ -f "$wt/.env" ] && grep -E '^VITE_RUBY_PORT=' "$wt/.env" | cut -d= -f2
+  done
+}
+
+# True if <port> is neither pinned by another worktree nor currently listening.
+vite_port_free() {   # port -> 0 if free
+  local p="$1"
+  ! used_vite_ports | grep -qx "$p" && ! lsof -nP -i ":$p" >/dev/null 2>&1
+}
+
+# vite_ruby projects hardcode one dev-server port in config/vite.json (commonly 3036),
+# shared by every checkout — two worktrees running bin/dev at once fight over it. Like
+# PORT/db names, this needs a per-worktree pin. vite_ruby reads VITE_RUBY_<OPTION> env
+# vars as overrides (lib/vite_ruby/config.rb), so VITE_RUBY_PORT does it. Derived from
+# the Rails port so the pair reads together (PORT=4000 -> VITE_RUBY_PORT=4036); if that
+# candidate is taken, try a few other fixed offsets before giving up.
+pick_vite_port() {   # rails_port -> vite_port
+  local base="$1" offset candidate
+  for offset in 36 136 236 336 436 536; do
+    candidate=$((base + offset))
+    [ "$candidate" -le 65535 ] && vite_port_free "$candidate" && { echo "$candidate"; return 0; }
+  done
+  echo "ERROR: no free vite port near $base" >&2; return 1
+}
+
 # Derive a memorable port from the ticket number in a branch/worktree name, so
 # LMCP-1989 -> http://localhost:1989. Matches the first JIRA/Linear-style
 # <letters>-<digits> token (feature/LMCP-1989-i -> 1989, PROJ-123-x -> 123), and
@@ -253,6 +284,13 @@ cmd_new() {
     fi
   fi
 
+  # vite_ruby marker: only pin a Vite port for repos that actually have one to collide
+  # over. Depends on $port above, so compute it after the port_src block.
+  local vite_port=""
+  if [ -f "$MAIN/config/vite.json" ]; then
+    vite_port="$(pick_vite_port "$port")"
+  fi
+
   # Refresh remote-tracking refs so an existing origin branch is detected
   # (tolerant: don't fail the command if offline or there's no origin).
   echo "▶ fetching origin..."
@@ -266,12 +304,15 @@ cmd_new() {
   echo "▶ database : $db  (via \$$DB_ENV_VAR)"
   echo "▶ test db  : $test_db  (via \$$TEST_DB_ENV_VAR)"
   echo "▶ port     : $port  ($port_src)"
+  [ -n "$vite_port" ] && echo "▶ vite port: $vite_port  (via \$VITE_RUBY_PORT — config/vite.json hardcodes one for every checkout)"
 
   # Gate: spell out exactly what will happen, then let the user back out before
   # anything is created. Steps are conditional on what the repo actually has.
+  local env_line="write .env (PORT + $DB_ENV_VAR + $TEST_DB_ENV_VAR"
+  [ -n "$vite_port" ] && env_line="$env_line + VITE_RUBY_PORT"
   echo "▶ steps    :"
   echo "    - create worktree + branch at the paths above"
-  echo "    - write .env (PORT + $DB_ENV_VAR + $TEST_DB_ENV_VAR)"
+  echo "    - $env_line)"
   if [ -f "$MAIN/package.json" ]; then
     node_install_step "$MAIN"
     echo "    - $PM_LABEL"
@@ -299,7 +340,10 @@ cmd_new() {
     git worktree add -b "$name" "$dir" "$base"
   fi
 
-  { echo "PORT=$port"; echo "$DB_ENV_VAR=$db"; echo "$TEST_DB_ENV_VAR=$test_db"; } > "$dir/.env"
+  {
+    echo "PORT=$port"; echo "$DB_ENV_VAR=$db"; echo "$TEST_DB_ENV_VAR=$test_db"
+    [ -n "$vite_port" ] && echo "VITE_RUBY_PORT=$vite_port"
+  } > "$dir/.env"
 
   if [ -f "$dir/package.json" ]; then
     node_install_step "$dir"
@@ -343,14 +387,18 @@ cmd_new() {
   echo ""
   echo "✅ Ready. Start it with:"
   echo "     cd $dir && PORT=$port $RUN_CMD"
-  echo "   (DB '$db' is automatic via .env; app on http://localhost:$port)"
+  if [ -n "$vite_port" ]; then
+    echo "   (DB '$db' is automatic via .env; app on http://localhost:$port; vite dev server on $vite_port)"
+  else
+    echo "   (DB '$db' is automatic via .env; app on http://localhost:$port)"
+  fi
 }
 
 cmd_ls() {
   # Header first, then rows — collected so we can size every column to its widest
   # cell before printing (a fixed width breaks the moment a path/db name is longer).
-  local -a NAME BRANCH PORT DB TDB
-  NAME=("WORKTREE"); BRANCH=("BRANCH"); PORT=("PORT"); DB=("DEV DB"); TDB=("TEST DB")
+  local -a NAME BRANCH PORT VPORT DB TDB
+  NAME=("WORKTREE"); BRANCH=("BRANCH"); PORT=("PORT"); VPORT=("VITE PORT"); DB=("DEV DB"); TDB=("TEST DB")
 
   # Parse the porcelain stream block-by-block: each worktree is a `worktree <path>`
   # line followed by `branch refs/heads/<name>` (or `detached`), blank-separated.
@@ -365,40 +413,43 @@ cmd_ls() {
   done < <(git worktree list --porcelain; echo)   # trailing blank flushes the last block
 
   # Column widths = widest cell in each column (header included).
-  local -a W=(0 0 0 0 0) i
+  local -a W=(0 0 0 0 0 0) i
   for i in "${!NAME[@]}"; do
     (( ${#NAME[$i]}   > W[0] )) && W[0]=${#NAME[$i]}
     (( ${#BRANCH[$i]} > W[1] )) && W[1]=${#BRANCH[$i]}
     (( ${#PORT[$i]}   > W[2] )) && W[2]=${#PORT[$i]}
-    (( ${#DB[$i]}     > W[3] )) && W[3]=${#DB[$i]}
-    (( ${#TDB[$i]}    > W[4] )) && W[4]=${#TDB[$i]}
+    (( ${#VPORT[$i]}  > W[3] )) && W[3]=${#VPORT[$i]}
+    (( ${#DB[$i]}     > W[4] )) && W[4]=${#DB[$i]}
+    (( ${#TDB[$i]}    > W[5] )) && W[5]=${#TDB[$i]}
   done
 
-  local fmt="%-${W[0]}s  %-${W[1]}s  %-${W[2]}s  %-${W[3]}s  %-${W[4]}s\n"
-  local total=$(( W[0] + W[1] + W[2] + W[3] + W[4] + 8 ))   # +8 for the 4 gaps of 2 spaces
+  local fmt="%-${W[0]}s  %-${W[1]}s  %-${W[2]}s  %-${W[3]}s  %-${W[4]}s  %-${W[5]}s\n"
+  local total=$(( W[0] + W[1] + W[2] + W[3] + W[4] + W[5] + 10 ))   # +10 for the 5 gaps of 2 spaces
 
-  printf "\n${BOLD}${fmt}${X}" "${NAME[0]}" "${BRANCH[0]}" "${PORT[0]}" "${DB[0]}" "${TDB[0]}"
+  printf "\n${BOLD}${fmt}${X}" "${NAME[0]}" "${BRANCH[0]}" "${PORT[0]}" "${VPORT[0]}" "${DB[0]}" "${TDB[0]}"
   printf "${DIM}%s${X}\n" "$(printf '%.0s─' $(seq 1 "$total"))"
   for i in "${!NAME[@]}"; do
     [ "$i" = 0 ] && continue   # skip the header we already printed
-    printf "$fmt" "${NAME[$i]}" "${BRANCH[$i]}" "${PORT[$i]}" "${DB[$i]}" "${TDB[$i]}"
+    printf "$fmt" "${NAME[$i]}" "${BRANCH[$i]}" "${PORT[$i]}" "${VPORT[$i]}" "${DB[$i]}" "${TDB[$i]}"
   done
   echo
 }
 
 # Append one worktree's cells to the parallel ls arrays. Shows the dir basename
 # (the full path is redundant — every worktree is a sibling of the repo) and reads
-# the pinned PORT / dev db / test db from the worktree's .env ("-" when absent).
+# the pinned PORT / vite port / dev db / test db from the worktree's .env ("-" when
+# absent — VITE_RUBY_PORT in particular is only written for vite_ruby repos).
 ls_row() {   # dir branch
-  local dir="$1" branch="${2:--}" port="-" db="-" test_db="-"
+  local dir="$1" branch="${2:--}" port="-" vport="-" db="-" test_db="-"
   if [ -f "$dir/.env" ]; then
     # `|| true` so a missing key doesn't trip `set -e` via the failing pipeline;
     # the ${var:--} fallback then turns the empty result into a "-".
     port="$(grep -E '^PORT=' "$dir/.env" | cut -d= -f2 || true)";              port="${port:--}"
+    vport="$(grep -E '^VITE_RUBY_PORT=' "$dir/.env" | cut -d= -f2 || true)";   vport="${vport:--}"
     db="$(grep -E "^${DB_ENV_VAR}=" "$dir/.env" | cut -d= -f2 || true)";       db="${db:--}"
     test_db="$(grep -E "^${TEST_DB_ENV_VAR}=" "$dir/.env" | cut -d= -f2 || true)"; test_db="${test_db:--}"
   fi
-  NAME+=("$(basename "$dir")"); BRANCH+=("$branch"); PORT+=("$port"); DB+=("$db"); TDB+=("$test_db")
+  NAME+=("$(basename "$dir")"); BRANCH+=("$branch"); PORT+=("$port"); VPORT+=("$vport"); DB+=("$db"); TDB+=("$test_db")
 }
 
 # Refresh origin so the merged/pushed assessment is current, avoiding false 'risky'
@@ -701,9 +752,10 @@ COMMANDS
       Create a worktree at ../<repo>-<name> on branch <name>, with its own dev +
       test databases (<repo>_<name>_development and <repo>_<name>_test),
       node_modules, and a
-      per-worktree .env pinning PORT + the DB env vars. Prompts before doing
-      anything. If <name> already exists (locally or on origin) it's checked out;
-      otherwise it's created from [base-branch].
+      per-worktree .env pinning PORT + the DB env vars (+ VITE_RUBY_PORT, for
+      vite_ruby repos — see CONFIG below). Prompts before doing anything. If
+      <name> already exists (locally or on origin) it's checked out; otherwise
+      it's created from [base-branch].
         port         optional; defaults to the ticket number in <name> (LMCP-1989
                      -> 1989) when that's a usable free port, else auto-picked
         base-branch  optional; defaults to origin's default branch, else main/master
@@ -712,7 +764,8 @@ COMMANDS
             worktree new hotfix 5000 main
 
   ls
-      List all worktrees as a table: branch, pinned port, dev db, and test db.
+      List all worktrees as a table: branch, pinned port, vite port (vite_ruby
+      repos only, "-" otherwise), dev db, and test db.
       e.g.  worktree ls
 
   rm [<name> | -i]
