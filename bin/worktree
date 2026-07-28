@@ -41,7 +41,8 @@
 # Usage:
 #   worktree new <name> [port] [base-branch]   # create + set up   (base-branch default: auto-detected)
 #   worktree ls                                # list worktrees (table: branch/port/db)
-#   worktree rm [<name>|-i]                    # remove a worktree (menu if no name) + branch + drop db
+#   worktree rm [<name>|-i]                    # remove a worktree (menu if no name) + branch + drop db,
+#                                              #   then asks separately about deleting origin/<branch>
 #   worktree print_path [<name>|-i]            # print a worktree's path (menu if no name); wrap to cd
 #
 set -euo pipefail
@@ -59,7 +60,31 @@ REPO_NAME="$(basename "$MAIN")"
 DB_ENV_VAR="${WORKTREE_DB_ENV_VAR:-DEV_DATABASE_NAME}"
 TEST_DB_ENV_VAR="${WORKTREE_TEST_DB_ENV_VAR:-TEST_DATABASE_NAME}"
 RUN_CMD="${WORKTREE_RUN_CMD:-bin/dev}"
-CANDIDATE_PORTS=(4000 5000 6000 7000 8000 9000)
+
+# Candidate ports used when no explicit port is provided. Configure these
+# directly in the script; range syntax like "4000-4005" is supported.
+CANDIDATE_PORTS=()
+CANDIDATE_PORT_TOKENS=(3001-3100 8001-8100)
+for token in "${CANDIDATE_PORT_TOKENS[@]}"; do
+  if [[ "$token" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+    start=${BASH_REMATCH[1]}; end=${BASH_REMATCH[2]}
+    if [ "$start" -le "$end" ]; then
+      for ((port = start; port <= end; port++)); do
+        CANDIDATE_PORTS+=("$port")
+      done
+    else
+      for ((port = start; port >= end; port--)); do
+        CANDIDATE_PORTS+=("$port")
+      done
+    fi
+  elif [[ "$token" =~ ^[0-9]+$ ]]; then
+    CANDIDATE_PORTS+=("$token")
+  else
+    echo "ERROR: invalid CANDIDATE_PORT_TOKENS entry: '$token'" >&2
+    echo "       Use either a single port number or a range like 4000-4010." >&2
+    exit 1
+  fi
+done
 
 # Colours, only when stdout is a terminal (shared by the ls table + the rm menu).
 if [ -t 1 ]; then
@@ -665,6 +690,51 @@ remove_worktree() {   # dir branch
     printf '%s  %s  %s\n' "$(date '+%F %T')" "$branch" "$ASSESS_SHA" >> "$MAIN/.git/worktree-removed.log" 2>/dev/null || true
     echo "${DIM}   restore the branch if needed:  git branch '$branch' $ASSESS_SHA${X}"
   fi
+
+  # Local teardown is done and reported. Now — and only now — ask about origin.
+  maybe_delete_remote_branch "$branch"
+}
+
+# Offer to delete the branch on origin too, once local teardown has succeeded.
+# Deliberately a SEPARATE question, asked after the fact: the local removal is
+# recoverable (the commits survive in the object store, and the restore command is
+# printed above), whereas `git push origin --delete` touches the shared remote and
+# takes out anything else pointing at it — an open PR's branch, a colleague's
+# checkout base. So it's never folded into the removal confirmation and never
+# implied by it. Only asked when origin actually has the branch, judged from the
+# origin/* mirror that fetch_origin refreshed at the top of cmd_rm.
+#
+# The local branch is already gone by now, so merged-ness is assessed against
+# origin/<branch> directly rather than reusing ASSESS_BRANCH_NOTE (which described
+# the now-deleted local ref).
+maybe_delete_remote_branch() {   # branch
+  local branch="$1"
+  [ -n "$branch" ] || return 0
+  git rev-parse --verify --quiet "refs/remotes/origin/$branch" >/dev/null 2>&1 || return 0
+
+  local main note; main="$(mainline_ref)"
+  if [ -n "$main" ] && git merge-base --is-ancestor "origin/$branch" "$main" 2>/dev/null; then
+    note="${G}merged into ${main#origin/}${X}"
+  elif [ -n "$main" ]; then
+    local ahead; ahead="$(git rev-list --count "$main..origin/$branch" 2>/dev/null || echo '?')"
+    note="${R}not merged into ${main#origin/} — $ahead commit(s) ahead${X}"
+  else
+    note="${Y}merge status unknown (no mainline ref found)${X}"
+  fi
+
+  echo
+  echo "▶ remote   : origin/$branch still exists  ${DIM}·${X} $note"
+  confirm "Also delete the remote branch origin/$branch?" || {
+    echo "${DIM}   left origin/$branch alone — delete it later with:  git push origin --delete '$branch'${X}"
+    return 0
+  }
+
+  echo "▶ deleting origin/$branch..."
+  if git push --quiet origin --delete "$branch"; then
+    echo "${G}✅ deleted remote branch origin/$branch${X}"
+  else
+    echo "  (couldn't delete origin/$branch — delete it manually: git push origin --delete '$branch')"
+  fi
 }
 
 # Interactive picker: list the worktrees (numbered), remove the chosen one, then loop
@@ -777,6 +847,9 @@ COMMANDS
       origin, or a worktree with uncommitted changes, is flagged (▲) and needs the
       branch name typed to confirm. A restore command for the branch is printed and
       logged to <main>/.git/worktree-removed.log.
+      Once the local teardown has succeeded, and only if origin still has the branch,
+      it asks as a separate question whether to delete origin/<branch> too (defaults
+      to no, and shows whether that branch is merged into mainline first).
       e.g.  worktree rm PROJ-123-fix-header
             worktree rm                     # interactive menu
 
