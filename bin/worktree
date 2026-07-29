@@ -420,10 +420,13 @@ cmd_new() {
 }
 
 cmd_ls() {
-  # Header first, then rows — collected so we can size every column to its widest
-  # cell before printing (a fixed width breaks the moment a path/db name is longer).
+  # One vertical block per worktree instead of one wide row. Long branch/db names
+  # blow out a horizontal table — every column widens to its longest cell, so a
+  # single 60-char db name shoves everything sideways. Here each field is its own
+  # line: a fixed-width label on the left, the value free to run as long as it likes
+  # on the right. Blocks are separated by a rule; the WORKTREE line is the title.
   local -a NAME BRANCH PORT VPORT DB TDB
-  NAME=("WORKTREE"); BRANCH=("BRANCH"); PORT=("PORT"); VPORT=("VITE PORT"); DB=("DEV DB"); TDB=("TEST DB")
+  NAME=(); BRANCH=(); PORT=(); VPORT=(); DB=(); TDB=()
 
   # Parse the porcelain stream block-by-block: each worktree is a `worktree <path>`
   # line followed by `branch refs/heads/<name>` (or `detached`), blank-separated.
@@ -437,25 +440,30 @@ cmd_ls() {
     esac
   done < <(git worktree list --porcelain; echo)   # trailing blank flushes the last block
 
-  # Column widths = widest cell in each column (header included).
-  local -a W=(0 0 0 0 0 0) i
+  local n="${#NAME[@]}"
+  if [ "$n" -eq 0 ]; then echo; echo "No worktrees."; echo; return; fi
+
+  # Fixed label column = widest label; the between-block rule spans label + gap +
+  # the longest value across every field, so it never looks stubby or overruns.
+  local -a LABELS=("WORKTREE" "BRANCH" "PORT" "VITE PORT" "DEV DB" "TEST DB")
+  local lw=0 l; for l in "${LABELS[@]}"; do (( ${#l} > lw )) && lw=${#l}; done
+  local maxval=0 i v
   for i in "${!NAME[@]}"; do
-    (( ${#NAME[$i]}   > W[0] )) && W[0]=${#NAME[$i]}
-    (( ${#BRANCH[$i]} > W[1] )) && W[1]=${#BRANCH[$i]}
-    (( ${#PORT[$i]}   > W[2] )) && W[2]=${#PORT[$i]}
-    (( ${#VPORT[$i]}  > W[3] )) && W[3]=${#VPORT[$i]}
-    (( ${#DB[$i]}     > W[4] )) && W[4]=${#DB[$i]}
-    (( ${#TDB[$i]}    > W[5] )) && W[5]=${#TDB[$i]}
+    for v in "${NAME[$i]}" "${BRANCH[$i]}" "${PORT[$i]}" "${VPORT[$i]}" "${DB[$i]}" "${TDB[$i]}"; do
+      (( ${#v} > maxval )) && maxval=${#v}
+    done
   done
+  local rule; rule="$(printf '%.0s─' $(seq 1 $(( lw + 2 + maxval ))))"
 
-  local fmt="%-${W[0]}s  %-${W[1]}s  %-${W[2]}s  %-${W[3]}s  %-${W[4]}s  %-${W[5]}s\n"
-  local total=$(( W[0] + W[1] + W[2] + W[3] + W[4] + W[5] + 10 ))   # +10 for the 5 gaps of 2 spaces
-
-  printf "\n${BOLD}${fmt}${X}" "${NAME[0]}" "${BRANCH[0]}" "${PORT[0]}" "${VPORT[0]}" "${DB[0]}" "${TDB[0]}"
-  printf "${DIM}%s${X}\n" "$(printf '%.0s─' $(seq 1 "$total"))"
+  echo
   for i in "${!NAME[@]}"; do
-    [ "$i" = 0 ] && continue   # skip the header we already printed
-    printf "$fmt" "${NAME[$i]}" "${BRANCH[$i]}" "${PORT[$i]}" "${VPORT[$i]}" "${DB[$i]}" "${TDB[$i]}"
+    printf "${BOLD}%-${lw}s  %s${X}\n" "${LABELS[0]}" "${NAME[$i]}"      # title row (bold)
+    printf "${DIM}%-${lw}s${X}  %s\n"  "${LABELS[1]}" "${BRANCH[$i]}"
+    printf "${DIM}%-${lw}s${X}  %s\n"  "${LABELS[2]}" "${PORT[$i]}"
+    printf "${DIM}%-${lw}s${X}  %s\n"  "${LABELS[3]}" "${VPORT[$i]}"
+    printf "${DIM}%-${lw}s${X}  %s\n"  "${LABELS[4]}" "${DB[$i]}"
+    printf "${DIM}%-${lw}s${X}  %s\n"  "${LABELS[5]}" "${TDB[$i]}"
+    [ "$i" -lt "$((n - 1))" ] && printf "${DIM}%s${X}\n" "$rule"        # separator, not after last
   done
   echo
 }
@@ -534,11 +542,12 @@ assess_removal() {   # dir branch
   fi
 }
 
-# Populate WT_* parallel arrays with every worktree EXCEPT the main checkout, reading
-# each one's pinned port from its .env. Feeds the interactive rm menu.
+# Populate WT_* parallel arrays with every worktree EXCEPT the main checkout.
+# Feeds the interactive rm menu and the print_path picker. WT_BRANCH is kept for
+# assess_removal (merged/pushed check), even though the picker no longer shows it.
 gather_worktrees() {   # [all] — pass "all" to include the main checkout (marked via WT_ISMAIN)
   local include_main="${1:-}"
-  WT_DIR=(); WT_BRANCH=(); WT_PORT=(); WT_ISMAIN=()
+  WT_DIR=(); WT_BRANCH=(); WT_ISMAIN=()
   local wt="" br=""
   while IFS= read -r line; do
     case "$line" in
@@ -549,9 +558,7 @@ gather_worktrees() {   # [all] — pass "all" to include the main checkout (mark
         if [ -n "$wt" ]; then
           local ismain=0; [ "$wt" = "$MAIN" ] && ismain=1
           if [ "$ismain" = 0 ] || [ "$include_main" = all ]; then
-            local port="-"
-            [ -f "$wt/.env" ] && { port="$(grep -E '^PORT=' "$wt/.env" | cut -d= -f2 || true)"; port="${port:--}"; }
-            WT_DIR+=("$wt"); WT_BRANCH+=("$br"); WT_PORT+=("$port"); WT_ISMAIN+=("$ismain")
+            WT_DIR+=("$wt"); WT_BRANCH+=("$br"); WT_ISMAIN+=("$ismain")
           fi
         fi
         wt=""; br="" ;;
@@ -564,13 +571,15 @@ gather_worktrees() {   # [all] — pass "all" to include the main checkout (mark
 # omits it. STATE is the trailing column, so its colour codes never break alignment.
 print_picker() {   # mode: rm|go
   local mode="$1" i
-  local -a NUM NAME BR PORT STATE
-  NUM=("#"); NAME=("WORKTREE"); BR=("BRANCH"); PORT=("PORT"); STATE=("STATE")
+  local -a NUM NAME STATE
+  NUM=("#"); NAME=("WORKTREE"); STATE=("STATE")
   for i in "${!WT_DIR[@]}"; do
     local nm; nm="$(basename "${WT_DIR[$i]}")"
     [ "${WT_ISMAIN[$i]:-0}" = 1 ] && nm="$nm (main)"
-    NUM+=("$((i + 1))"); NAME+=("$nm"); BR+=("${WT_BRANCH[$i]:-(detached)}"); PORT+=("${WT_PORT[$i]}")
+    NUM+=("$((i + 1))"); NAME+=("$nm")
     if [ "$mode" = rm ]; then
+      # STATE carries the branch's status (merged/pushed/would-be-lost + detached),
+      # which is why the picker doesn't also need a BRANCH column of its own.
       assess_removal "${WT_DIR[$i]}" "${WT_BRANCH[$i]}"
       local dot="${G}●${X}"; [ "$ASSESS_RISKY" = 1 ] && dot="${R}▲${X}"
       STATE+=("$dot $ASSESS_BRANCH_NOTE${DIM} · ${X}$ASSESS_WORK_NOTE")
@@ -578,30 +587,28 @@ print_picker() {   # mode: rm|go
   done
 
   # Widths of the plain-text columns (STATE is coloured + last, so left free).
-  local -a W=(0 0 0 0)
+  local -a W=(0 0)
   for i in "${!NUM[@]}"; do
     (( ${#NUM[$i]}  > W[0] )) && W[0]=${#NUM[$i]}
     (( ${#NAME[$i]} > W[1] )) && W[1]=${#NAME[$i]}
-    (( ${#BR[$i]}   > W[2] )) && W[2]=${#BR[$i]}
-    (( ${#PORT[$i]} > W[3] )) && W[3]=${#PORT[$i]}
   done
-  local fmt="  %-${W[0]}s  %-${W[1]}s  %-${W[2]}s  %-${W[3]}s"
+  local fmt="  %-${W[0]}s  %-${W[1]}s"
   [ "$mode" = rm ] && fmt="$fmt  %s"
   fmt="$fmt\n"
-  local rule; rule="$(printf '%.0s─' $(seq 1 $(( W[0] + W[1] + W[2] + W[3] + 8 ))))"
+  local rule; rule="$(printf '%.0s─' $(seq 1 $(( W[0] + W[1] + 4 ))))"
 
   if [ "$mode" = rm ]; then
-    printf "${BOLD}${fmt}${X}" "${NUM[0]}" "${NAME[0]}" "${BR[0]}" "${PORT[0]}" "${STATE[0]}"
+    printf "${BOLD}${fmt}${X}" "${NUM[0]}" "${NAME[0]}" "${STATE[0]}"
   else
-    printf "${BOLD}${fmt}${X}" "${NUM[0]}" "${NAME[0]}" "${BR[0]}" "${PORT[0]}"
+    printf "${BOLD}${fmt}${X}" "${NUM[0]}" "${NAME[0]}"
   fi
   printf "  ${DIM}%s${X}\n" "$rule"
   for i in "${!NUM[@]}"; do
     [ "$i" = 0 ] && continue
     if [ "$mode" = rm ]; then
-      printf "$fmt" "${NUM[$i]}" "${NAME[$i]}" "${BR[$i]}" "${PORT[$i]}" "${STATE[$i]}"
+      printf "$fmt" "${NUM[$i]}" "${NAME[$i]}" "${STATE[$i]}"
     else
-      printf "$fmt" "${NUM[$i]}" "${NAME[$i]}" "${BR[$i]}" "${PORT[$i]}"
+      printf "$fmt" "${NUM[$i]}" "${NAME[$i]}"
     fi
   done
 }
@@ -657,6 +664,17 @@ remove_worktree() {   # dir branch
   echo "▶ branch   : ${branch:-(detached)}  ${DIM}·${X} $ASSESS_BRANCH_NOTE"
   echo "▶ state    : $ASSESS_WORK_NOTE"
   echo "▶ databases: $db + $test_db"
+
+  # Namesake drift: a worktree "<repo>-<slug>" normally has the branch whose slug
+  # matches <slug> checked out. If you've since switched it to another branch (e.g.
+  # a deploy/… branch to push a preview), everything above describes THAT branch, and
+  # removal deletes it — while the branch the worktree was created for is left behind.
+  # Flag it so you don't delete blind or assume the namesake branch went with it.
+  local namesake; namesake="$(basename "$dir")"; namesake="${namesake#"${REPO_NAME}-"}"
+  if [ -n "$branch" ] && [ "$(slugify "$branch")" != "$namesake" ]; then
+    echo "${Y}⚠ on '$branch', not this worktree's namesake ('$namesake') — removing deletes '$branch'; the namesake branch (if it still exists) is left as-is.${X}"
+  fi
+
   if [ "$ASSESS_RISKY" = 1 ]; then
     echo "${R}▲ Removing this will permanently lose the work flagged above.${X}"
     local target="${branch:-$(basename "$dir")}" ans
@@ -834,8 +852,9 @@ COMMANDS
             worktree new hotfix 5000 main
 
   ls
-      List all worktrees as a table: branch, pinned port, vite port (vite_ruby
-      repos only, "-" otherwise), dev db, and test db.
+      List all worktrees, one vertical block each: branch, pinned port, vite port
+      (vite_ruby repos only, "-" otherwise), dev db, and test db — a block per
+      worktree, so long db/branch names stay readable instead of blowing out a row.
       e.g.  worktree ls
 
   rm [<name> | -i]
