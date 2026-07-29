@@ -43,12 +43,12 @@ iterm_profile() {
 # type `matrix` to load the Matrix profile
 alias matrix='iterm_profile "Matrix"'
 
-# Run claude under the Matrix profile, then restore the default on exit.
-claude() {
-  iterm_profile "Matrix"
-  command claude "$@"
-  local ret=$?          # was: local status=$?  (status is read-only in zsh)
-  iterm_profile "$ITERM_DEFAULT_PROFILE"
-  return $ret           # was: return $status
-}
+# # Run claude under the Matrix profile, then restore the default on exit.
+# claude() {
+#   iterm_profile "Matrix"
+#   command claude "$@"
+#   local ret=$?          # was: local status=$?  (status is read-only in zsh)
+#   iterm_profile "$ITERM_DEFAULT_PROFILE"
+#   return $ret           # was: return $status
+# }
 ##################################################
