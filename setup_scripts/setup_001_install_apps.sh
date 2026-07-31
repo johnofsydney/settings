@@ -100,10 +100,6 @@ install_cask() {
   fi
 }
 
-echo "Reminder: create an SSH key and add it to GitHub if you haven't already:"
-echo "  https://docs.github.com/en/authentication/connecting-to-github-with-ssh"
-echo
-
 # git first — setup_002 needs it to set global config, and the repo may have
 # been downloaded as a zip without git installed yet.
 install_formula git

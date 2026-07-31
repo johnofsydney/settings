@@ -51,6 +51,10 @@ else
   echo "Homebrew already installed: $(brew --prefix)"
 fi
 
+echo "Reminder: create an SSH key and add it to GitHub if you haven't already:"
+echo "  https://docs.github.com/en/authentication/connecting-to-github-with-ssh"
+echo
+
 ############################################################
 # Numbered setup scripts
 ############################################################
