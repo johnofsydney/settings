@@ -161,6 +161,7 @@ install_cask orbstack  # Docker replacement for Apple Silicon
 install_cask stablyai/orca/orca # AI agentic development envirionment
 install_cask claude
 install_cask claude-code
+install_cask whatsapp
 
 # Returns 0 (true) if any of the given casks are not yet installed.
 any_cask_missing() {
