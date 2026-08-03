@@ -18,9 +18,14 @@
 #     picks the DBs up automatically for every rails command in that worktree)
 #   - a PORT: the ticket number from the name if usable+free (LMCP-1989 -> 1989),
 #     else an auto-picked free candidate
-#   - for vite_ruby repos (config/vite.json present): a VITE_RUBY_PORT in the same
-#     .env, since vite.json hardcodes one dev-server port for every checkout and
-#     concurrent worktrees running bin/dev would otherwise fight over it
+#   - a VITE_RUBY_PORT in the same .env, always — vite.json hardcodes one dev-server
+#     port for every checkout, so concurrent worktrees running bin/dev fight over it.
+#     Written even for repos with no vite: one .env shape everywhere, and an env var
+#     nothing reads is harmless
+#
+# Port pins are checked against every worktree of this repo AND every sibling
+# directory of the main checkout, so a pin belonging to another project (or to an
+# orphan directory git no longer tracks) still counts as taken.
 #
 # Test-DB isolation matters: in development `db:drop`/`db:create` act on BOTH the
 # dev and the test database. Isolating the test DB per worktree (rather than
@@ -191,37 +196,57 @@ resolve_base() {
   echo main   # nothing matched; let the downstream git error surface
 }
 
-# Ports already pinned by existing worktrees' .env files.
-used_ports() {
-  git worktree list --porcelain | awk '/^worktree /{print $2}' | while read -r wt; do
-    [ -f "$wt/.env" ] && grep -E '^PORT=' "$wt/.env" | cut -d= -f2
-  done
+# Every directory that could be holding a port-pinning .env. Two sources, unioned:
+#   1. this repo's registered worktrees (git worktree list)
+#   2. every sibling directory of the main checkout ($PARENT/*)
+# (2) is what makes the scan honest. (1) on its own misses two cases that have both
+# happened here: a worktree belonging to a DIFFERENT repo in the same projects folder
+# (invisible to this repo's `git worktree list`), and an orphan directory that still
+# has a live .env but is no longer registered with git (a half-finished teardown, or
+# a dir removed from git but left on disk). Either can hand you a duplicate port.
+# Scanning siblings only ever makes the picker more conservative, and with 200
+# candidates there is plenty of headroom to be conservative with.
+pin_dirs() {
+  git worktree list --porcelain | awk '/^worktree /{print $2}'
+  find "$PARENT" -mindepth 1 -maxdepth 1 -type d 2>/dev/null
 }
 
-# True if <port> is neither pinned by another worktree nor currently listening.
-port_free() {   # port -> 0 if free
-  local p="$1"
-  ! used_ports | grep -qx "$p" && ! lsof -nP -i ":$p" >/dev/null 2>&1
+# Values pinned for <key> across every candidate dir, deduped by the caller's grep.
+#
+# The `|| true` is load-bearing, not defensive noise. Without it, the first .env that
+# EXISTS but has no <key> line makes grep exit 1; because that grep was the final
+# command of an `&& ` list, `set -e` is NOT suppressed and it kills the whole
+# while-loop subshell — silently truncating the scan so every pin AFTER that dir
+# becomes invisible. That is a duplicate port waiting to happen, and for
+# VITE_RUBY_PORT (a key most .env files don't have) it meant the scan returned
+# nothing at all.
+used_pins() {   # KEY -> pinned values, one per line
+  local key="$1" dir
+  while read -r dir; do
+    [ -f "$dir/.env" ] || continue
+    grep -E "^${key}=" "$dir/.env" | cut -d= -f2 || true
+  done < <(pin_dirs | sort -u)
 }
+
+# True if <port> is pinned in some .env, or something is listening on it right now.
+# The lsof form matters: a bare `lsof -i :3001` ALSO matches outbound connections
+# whose REMOTE port is 3001, so talking to someone else's 3001 makes the port look
+# busy. -iTCP:<p> -sTCP:LISTEN restricts it to a socket actually bound here.
+port_in_use() {   # KEY port -> 0 if taken
+  local key="$1" p="$2"
+  if used_pins "$key" | grep -qx "$p"; then return 0; fi
+  if lsof -nP -iTCP:"$p" -sTCP:LISTEN >/dev/null 2>&1; then return 0; fi
+  return 1
+}
+
+port_free()      { ! port_in_use PORT "$1"; }
+vite_port_free() { ! port_in_use VITE_RUBY_PORT "$1"; }
 
 pick_port() {
   for p in "${CANDIDATE_PORTS[@]}"; do
     port_free "$p" && { echo "$p"; return 0; }
   done
   echo "ERROR: no free candidate port" >&2; return 1
-}
-
-# Vite ports already pinned by existing worktrees' .env files.
-used_vite_ports() {
-  git worktree list --porcelain | awk '/^worktree /{print $2}' | while read -r wt; do
-    [ -f "$wt/.env" ] && grep -E '^VITE_RUBY_PORT=' "$wt/.env" | cut -d= -f2
-  done
-}
-
-# True if <port> is neither pinned by another worktree nor currently listening.
-vite_port_free() {   # port -> 0 if free
-  local p="$1"
-  ! used_vite_ports | grep -qx "$p" && ! lsof -nP -i ":$p" >/dev/null 2>&1
 }
 
 # vite_ruby projects hardcode one dev-server port in config/vite.json (commonly 3036),
@@ -299,7 +324,21 @@ cmd_new() {
   # (memorable — the preview URL then matches the ticket) when it's usable and
   # free, else auto-pick a free candidate from CANDIDATE_PORTS.
   local port="${2:-}" port_src="explicit"
-  if [ -z "$port" ]; then
+  if [ -n "$port" ]; then
+    # An explicit port is still checked. It used to be taken purely on trust, so
+    # `worktree new foo 3002` would cheerfully pin a port another worktree already
+    # owned — the one path that skipped every collision check. Fail up front,
+    # before anything is created, rather than hand out a known duplicate.
+    if ! [[ "$port" =~ ^[0-9]+$ ]] || [ "$port" -lt 1024 ] || [ "$port" -gt 65535 ]; then
+      echo "ERROR: '$port' is not a usable port (want 1024-65535)." >&2; exit 1
+    fi
+    if ! port_free "$port"; then
+      echo "ERROR: port $port is already pinned by another worktree, or something is" >&2
+      echo "       listening on it. Run 'worktree ls' to see the pins, or omit the" >&2
+      echo "       port argument to auto-pick a free one." >&2
+      exit 1
+    fi
+  else
     local ticket_port; ticket_port="$(port_from_ticket "$name")"
     if [ -n "$ticket_port" ] && port_free "$ticket_port"; then
       port="$ticket_port"; port_src="from ticket number"
@@ -309,12 +348,15 @@ cmd_new() {
     fi
   fi
 
-  # vite_ruby marker: only pin a Vite port for repos that actually have one to collide
-  # over. Depends on $port above, so compute it after the port_src block.
-  local vite_port=""
-  if [ -f "$MAIN/config/vite.json" ]; then
-    vite_port="$(pick_vite_port "$port")"
-  fi
+  # VITE_RUBY_PORT is pinned for EVERY repo, not just ones with a config/vite.json
+  # sitting there today. vite_ruby hardcodes one dev-server port shared by every
+  # checkout, so concurrent worktrees running bin/dev fight over it; VITE_RUBY_PORT
+  # is the documented override. Writing it unconditionally keeps a single .env shape
+  # across every repo and machine — a repo that doesn't use vite just carries an env
+  # var nothing reads, which costs nothing and cannot clash with anything. It also
+  # means the key is present everywhere, so the pin scan sees a consistent picture.
+  # Depends on $port above, so compute it after the port block.
+  local vite_port; vite_port="$(pick_vite_port "$port")"
 
   # Refresh remote-tracking refs so an existing origin branch is detected
   # (tolerant: don't fail the command if offline or there's no origin).
@@ -329,12 +371,11 @@ cmd_new() {
   echo "▶ database : $db  (via \$$DB_ENV_VAR)"
   echo "▶ test db  : $test_db  (via \$$TEST_DB_ENV_VAR)"
   echo "▶ port     : $port  ($port_src)"
-  [ -n "$vite_port" ] && echo "▶ vite port: $vite_port  (via \$VITE_RUBY_PORT — config/vite.json hardcodes one for every checkout)"
+  echo "▶ vite port: $vite_port  (via \$VITE_RUBY_PORT — vite.json hardcodes one for every checkout)"
 
   # Gate: spell out exactly what will happen, then let the user back out before
   # anything is created. Steps are conditional on what the repo actually has.
-  local env_line="write .env (PORT + $DB_ENV_VAR + $TEST_DB_ENV_VAR"
-  [ -n "$vite_port" ] && env_line="$env_line + VITE_RUBY_PORT"
+  local env_line="write .env (PORT + VITE_RUBY_PORT + $DB_ENV_VAR + $TEST_DB_ENV_VAR"
   echo "▶ steps    :"
   echo "    - create worktree + branch at the paths above"
   echo "    - $env_line)"
@@ -351,6 +392,30 @@ cmd_new() {
     *) echo "Aborted."; exit 1 ;;
   esac
 
+  # Close the check-to-use gap (TOCTOU). The port was chosen well above so it could
+  # be shown in the summary — but nothing RESERVED it, and the prompt you just
+  # answered can sit open indefinitely. A second `worktree new` in another tab (or
+  # this one, left waiting while you set up another) can claim the same number in
+  # between: both checked "free", both were right at the time, both then pin it.
+  # Re-checking here shrinks the window from "however long you took to answer y"
+  # down to the second or so before .env is written.
+  if ! port_free "$port"; then
+    if [ "$port_src" = "explicit" ]; then
+      echo "⚠ port $port was claimed while you were confirming — pinning it anyway," >&2
+      echo "  since you asked for it by name. Expect a clash." >&2
+    else
+      local stolen="$port"
+      port="$(pick_port)"
+      port_src="re-picked ($stolen was claimed while you were confirming)"
+      echo "▶ port reassigned: $stolen → $port  ($stolen went to something else mid-prompt)"
+    fi
+  fi
+  if ! vite_port_free "$vite_port"; then
+    local stolen_vite="$vite_port"
+    vite_port="$(pick_vite_port "$port")"
+    echo "▶ vite port reassigned: $stolen_vite → $vite_port"
+  fi
+
   if git show-ref --verify --quiet "refs/heads/$name"; then
     # Existing local branch — check it out (base-branch arg is ignored).
     echo "▶ using existing local branch"
@@ -366,8 +431,8 @@ cmd_new() {
   fi
 
   {
-    echo "PORT=$port"; echo "$DB_ENV_VAR=$db"; echo "$TEST_DB_ENV_VAR=$test_db"
-    [ -n "$vite_port" ] && echo "VITE_RUBY_PORT=$vite_port"
+    echo "PORT=$port"; echo "VITE_RUBY_PORT=$vite_port"
+    echo "$DB_ENV_VAR=$db"; echo "$TEST_DB_ENV_VAR=$test_db"
   } > "$dir/.env"
 
   if [ -f "$dir/package.json" ]; then
@@ -412,11 +477,7 @@ cmd_new() {
   echo ""
   echo "✅ Ready. Start it with:"
   echo "     cd $dir && PORT=$port $RUN_CMD"
-  if [ -n "$vite_port" ]; then
-    echo "   (DB '$db' is automatic via .env; app on http://localhost:$port; vite dev server on $vite_port)"
-  else
-    echo "   (DB '$db' is automatic via .env; app on http://localhost:$port)"
-  fi
+  echo "   (DB '$db' is automatic via .env; app on http://localhost:$port; vite dev server on $vite_port)"
 }
 
 cmd_ls() {
@@ -471,7 +532,7 @@ cmd_ls() {
 # Append one worktree's cells to the parallel ls arrays. Shows the dir basename
 # (the full path is redundant — every worktree is a sibling of the repo) and reads
 # the pinned PORT / vite port / dev db / test db from the worktree's .env ("-" when
-# absent — VITE_RUBY_PORT in particular is only written for vite_ruby repos).
+# absent — e.g. the main checkout, or a worktree predating a given key).
 ls_row() {   # dir branch
   local dir="$1" branch="${2:--}" port="-" vport="-" db="-" test_db="-"
   if [ -f "$dir/.env" ]; then
@@ -840,20 +901,24 @@ COMMANDS
       Create a worktree at ../<repo>-<name> on branch <name>, with its own dev +
       test databases (<repo>_<name>_development and <repo>_<name>_test),
       node_modules, and a
-      per-worktree .env pinning PORT + the DB env vars (+ VITE_RUBY_PORT, for
-      vite_ruby repos — see CONFIG below). Prompts before doing anything. If
+      per-worktree .env pinning PORT + VITE_RUBY_PORT + the DB env vars.
+      Prompts before doing anything. If
       <name> already exists (locally or on origin) it's checked out; otherwise
       it's created from [base-branch].
         port         optional; defaults to the ticket number in <name> (LMCP-1989
-                     -> 1989) when that's a usable free port, else auto-picked
+                     -> 1989) when that's a usable free port, else auto-picked.
+                     A port you pass explicitly is checked too — if it's already
+                     pinned or listening, the command fails instead of clashing.
+                     Pins are read from every worktree of this repo AND every
+                     sibling dir of the main checkout, so other projects count.
         base-branch  optional; defaults to origin's default branch, else main/master
       e.g.  worktree new PROJ-123-fix-header
             worktree new PROJ-123-fix-header 5000
             worktree new hotfix 5000 main
 
   ls
-      List all worktrees, one vertical block each: branch, pinned port, vite port
-      (vite_ruby repos only, "-" otherwise), dev db, and test db — a block per
+      List all worktrees, one vertical block each: branch, pinned port, vite port,
+      dev db, and test db ("-" for anything the .env doesn't pin) — a block per
       worktree, so long db/branch names stay readable instead of blowing out a row.
       e.g.  worktree ls
 
