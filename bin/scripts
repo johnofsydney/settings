@@ -1,0 +1,195 @@
+#!/usr/bin/env bash
+#
+# scripts — list the custom commands in this bin/ directory, with a description of each.
+#
+#   - Discovers them, rather than hardcoding a list: anything executable sitting
+#     next to this file is picked up automatically, so a new command shows up the
+#     moment you drop it in and nothing ever falls off the list.
+#   - The description is read out of each script's own header — the
+#     "# <name> — <what it does>." line every command here carries. One source of
+#     truth: edit the script's header and this listing follows.
+#   - Anything missing that header is still listed, flagged as undocumented, so a
+#     new command can't quietly become the one you forget what it does.
+#
+# Project-agnostic; run from anywhere. Read-only.
+#
+# Usage:
+#   scripts              # one line per command
+#   scripts -l           # also show each command's Usage block
+#   scripts <name>       # the full header comment for one command
+#
+set -euo pipefail
+
+# This script's own directory — the bin/ being listed. Resolved through symlinks
+# so it still works when called via a symlink on PATH.
+self="${BASH_SOURCE[0]}"
+while [ -L "$self" ]; do
+  link="$(readlink "$self")"
+  case "$link" in
+    /*) self="$link" ;;
+    *)  self="$(cd -- "$(dirname -- "$self")" && pwd)/$link" ;;
+  esac
+done
+bin_dir="$(cd -- "$(dirname -- "$self")" && pwd)"
+
+# ---- colour (only when writing to a terminal) --------------------------------
+if [ -t 1 ]; then
+  bold=$'\033[1m'; dim=$'\033[2m'; yellow=$'\033[33m'; reset=$'\033[0m'
+else
+  bold=""; dim=""; yellow=""; reset=""
+fi
+
+width="$( { tput cols; } 2>/dev/null || echo 80 )"
+[ "$width" -lt 40 ] 2>/dev/null && width=80
+
+# ---- header parsing ----------------------------------------------------------
+#
+# Every command here opens with a comment block:
+#
+#   #!/usr/bin/env bash
+#   #
+#   # name — one-line description.
+#   #   ...more detail...
+#   # Usage:
+#   #   name <args>
+#   #
+#   set -euo pipefail        <- first non-comment line ends the block
+#
+# `header` prints that block with the leading "# " stripped.
+
+header() {
+  local f="$1" line first=1
+  while IFS= read -r line; do
+    if [ "$first" = 1 ]; then
+      first=0
+      case "$line" in '#!'*) continue ;; esac
+    fi
+    case "$line" in
+      '#') echo "" ;;
+      '#'*) line="${line#\#}"; echo "${line# }" ;;
+      *) break ;;
+    esac
+  done < "$f"
+}
+
+# The one-liner: first non-empty header line, with its "name — " prefix removed.
+description() {
+  local f="$1" base line desc=""
+  base="$(basename "$f")"
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    desc="$line"
+    break
+  done < <(header "$f")
+
+  # Strip the leading "<name> — " / "<name> - " so names aren't printed twice.
+  local stripped="${desc#"$base" — }"
+  [ "$stripped" = "$desc" ] && stripped="${desc#"$base" - }"
+  # Trailing full stop reads oddly in a column; drop it.
+  printf '%s' "${stripped%.}"
+}
+
+# The "Usage:" block, if the header has one.
+usage_block() {
+  local line in_usage=0
+  while IFS= read -r line; do
+    if [ "$in_usage" = 1 ]; then
+      case "$line" in
+        '') break ;;
+        *) echo "$line" ;;
+      esac
+    elif [ "$line" = "Usage:" ]; then
+      in_usage=1
+    fi
+  done < <(header "$1")
+}
+
+# ---- discovery ---------------------------------------------------------------
+# Executable regular files only — NOTES.md and friends are not commands.
+commands=()
+for f in "$bin_dir"/*; do
+  [ -f "$f" ] || continue
+  [ -x "$f" ] || continue
+  commands+=("$(basename "$f")")
+done
+
+if [ "${#commands[@]}" -eq 0 ]; then
+  echo "No executable commands found in $bin_dir" >&2
+  exit 1
+fi
+
+# ---- single-command mode -----------------------------------------------------
+if [ $# -gt 0 ] && [ "$1" != "-l" ] && [ "$1" != "--long" ]; then
+  case "$1" in
+    -h|--help) sed -n '2,/^set -euo/p' "$self" | sed '$d; s/^#\{1,\} \{0,1\}//'; exit 0 ;;
+  esac
+
+  want="$1"
+  if [ ! -x "$bin_dir/$want" ] || [ ! -f "$bin_dir/$want" ]; then
+    echo "scripts: no such command '$want' in $bin_dir" >&2
+    echo "Run 'scripts' with no arguments to see what's available." >&2
+    exit 1
+  fi
+  echo "${bold}${want}${reset}  ${dim}${bin_dir}/${want}${reset}"
+  echo
+  header "$bin_dir/$want" | sed '/./,$!d'   # drop the blank line the block opens with
+  exit 0
+fi
+
+long=0
+[ $# -gt 0 ] && long=1
+
+# ---- listing -----------------------------------------------------------------
+pad=0
+for name in "${commands[@]}"; do
+  [ "${#name}" -gt "$pad" ] && pad="${#name}"
+done
+gap=2
+desc_width=$(( width - pad - gap ))
+[ "$desc_width" -lt 30 ] && desc_width=30
+
+echo "${bold}Custom commands in ${bin_dir}${reset}"
+echo
+
+undocumented=()
+for name in "${commands[@]}"; do
+  desc="$(description "$bin_dir/$name")"
+
+  if [ -z "$desc" ]; then
+    undocumented+=("$name")
+    desc="${yellow}(no description header — add a '# ${name} — ...' line)${reset}"
+    printf "%s%-*s%s%*s%b\n" "$bold" "$pad" "$name" "$reset" "$gap" "" "$desc"
+    continue
+  fi
+
+  # Wrap the description under a hanging indent so long ones stay in their column.
+  first_line=1
+  while IFS= read -r chunk; do
+    if [ "$first_line" = 1 ]; then
+      printf "%s%-*s%s%*s%s\n" "$bold" "$pad" "$name" "$reset" "$gap" "" "$chunk"
+      first_line=0
+    else
+      printf "%*s%s\n" $(( pad + gap )) "" "$chunk"
+    fi
+  done < <(printf '%s\n' "$desc" | fold -s -w "$desc_width" | sed 's/[[:space:]]*$//')
+
+  if [ "$long" = 1 ]; then
+    while IFS= read -r u; do
+      printf "%*s%s%s%s\n" $(( pad + gap )) "" "$dim" "$u" "$reset"
+    done < <(usage_block "$bin_dir/$name")
+    echo
+  fi
+done
+
+# ---- footer ------------------------------------------------------------------
+echo
+if [ "${#undocumented[@]}" -gt 0 ]; then
+  echo "${yellow}${#undocumented[@]} command(s) without a description header: ${undocumented[*]}${reset}"
+fi
+if [ "$long" = 0 ]; then
+  echo "${dim}scripts -l        show usage for each${reset}"
+  echo "${dim}scripts <name>    full notes for one command${reset}"
+fi
+[ -f "$bin_dir/NOTES.md" ] && echo "${dim}Longer write-ups and review notes: ${bin_dir}/NOTES.md${reset}"
+
+exit 0

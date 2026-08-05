@@ -9,6 +9,14 @@ the others (no sourcing/calling a sibling script, no dependency on this repo's
 editing commands — duplicate a small helper (e.g. `resolve_base`) inline rather
 than factoring it into a shared file.
 
+**Accepted exception: `update-brews`.** It runs
+`setup_scripts/setup_001_install_apps.sh` from this repo, so it cannot be standalone
+— being a short, memorable name for that longer path is the entire reason it exists.
+Not a defect, and not to be "fixed". It fails with an explanatory message (what it
+looked for, where, and why it might be missing) rather than a bare error, which is
+all that is wanted here. No other command in `bin/` may depend on a sibling or on
+the repo.
+
 ---
 
 ## `delete-finished-branches` — safe branch cleanup (rewritten 2026-07-20)
@@ -38,13 +46,100 @@ PROTECTED_BRANCHES='main|master|develop' delete-finished-branches   # override p
   or, with no PR, all unique commits authored by your `git config user.email`. Someone
   else's branch: local delete allowed, remote kept (shown as `theirs`).
 - Always skips protected mainlines, the current branch, and worktree-checked-out branches.
-- Every deletion is logged to `.git/deleted-branches.log` with the tip SHA, and a
-  paste-to-restore `git branch <name> <sha>` line is printed — a mistake is one paste to undo.
+- Every deletion is logged to `.git/deleted-branches.log` with the tip SHA **and the
+  command that undoes it** (updated 2026-08-05 — previously the log held only name +
+  sha, and remote deletions were not logged at all, so the `git push` undo existed
+  only in the terminal scrollback). Local and remote deletions get a line each:
+
+  ```
+  <date>  <branch>  <sha>  local   git branch <branch> <sha>
+  <date>  <branch>  <sha>  remote  git push origin <sha>:refs/heads/<branch>
+  ```
+
+  The undo sits on the same line as the branch name deliberately, because retrieval
+  is `grep <branch> .git/deleted-branches.log` and grep returns lines. The first
+  three fields match the older format, so historical lines still align.
 
 **Dependencies:** pure git for the core; **`gh` (optional)** enriches merge/open-PR
 detection and branch ownership. Without `gh` it still runs — it just falls back to
 "merged into main" (via `git merge-base`) and commit-author ownership. (This updates the
 2026-07-08 review note below, which predates the `gh` dependency.)
+
+---
+
+## `compact-watch` — is Claude Code's auto-compact setting actually firing? (added 2026-08-05)
+
+Added after an audit found that ~99.5% of Claude Code token usage is *input*, and
+96.5% of that is cache reads — i.e. re-sending the same conversation on every turn.
+Context size × turns is the whole bill, so `autoCompactWindow` (which caps how large
+the context gets before it is summarised) is the highest-leverage setting there is.
+
+The problem it solves: changing that setting gives you no feedback. Nothing tells you
+whether it took. This reads the answer out of the local session transcripts.
+
+**Usage:**
+
+```
+compact-watch                 # last 20 compactions, newest first
+compact-watch 50              # last 50
+compact-watch --auto          # auto-triggered only (hide manual /compact runs)
+```
+
+**How it works:** every compaction writes a `compact_boundary` record into
+`~/.claude/projects/**/*.jsonl` with `preTokens` (context size when it fired),
+`postTokens` (what survived), and `durationMs`. The script prints those next to the
+currently-configured window.
+
+**Reading the verdict:** it only compares against auto compactions that happened
+*after* `~/.claude/settings.json` was last modified — an earlier one says nothing
+about the current setting. Until one occurs it says "nothing to verify against"
+rather than falsely reporting a mismatch. Uses the settings file's mtime, so editing
+the file for an unrelated reason resets the comparison; fine for the question it
+answers ("I just changed this — has it taken effect?").
+
+**Where to change the setting** — printed in the script's own output, deliberately,
+so it doubles as the reminder:
+
+```
+~/.claude/settings.json  →  "autoCompactWindow"  (integer, 100000–1000000)
+```
+
+Lower = compact sooner = fewer tokens re-sent per turn. Raise toward 300000–400000
+if you lose context you still needed, or if the pauses interrupt: each compaction
+takes ~2 minutes and drops the conversation to a ~15k-token summary. Baseline before
+tuning: four auto compactions between 8 and 23 July all fired at ~1,000,000, the
+schema ceiling.
+
+**Dependencies:** `python3` only. Read-only — it opens transcripts and the settings
+file, writes nothing, sends nothing.
+
+---
+
+## `scripts` — what's in here, and what each one does (added 2026-08-05)
+
+An index of this directory, so no command gets forgotten about.
+
+**Usage:**
+
+```
+scripts              # one line per command
+scripts -l           # also show each command's Usage block
+scripts <name>       # the full header comment for one command
+```
+
+**How it works:** it does not hold a list. It globs the executables sitting next to
+itself and reads each one's description straight out of its header — the
+`# <name> — <what it does>.` line on line 3 that every command here already carries.
+Drop a new script in and it appears; edit a header and the listing follows. There is
+no second place to update and nothing to keep in sync.
+
+**The one convention it relies on:** that line-3 header. A command without one is
+still listed, but flagged in yellow as undocumented with a count in the footer — so
+the failure mode is a visible nag, not a silent omission.
+
+**Dependencies:** bash, `fold`, `sed`, `tput`. Self-contained: resolves its own
+directory through symlinks via `BASH_SOURCE`, reads no sibling script and nothing
+from `$SETTINGS_FOLDER`. Read-only.
 
 ---
 

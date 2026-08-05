@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+#
+# compact-watch — show when Claude Code auto-compacted, and at what context size.
+#
+#   - Reads the local session transcripts (~/.claude/projects/**/*.jsonl). Every
+#     compaction writes a `compact_boundary` record carrying preTokens (context
+#     size when it fired) and postTokens (what survived the summary).
+#   - Prints the current autoCompactWindow setting alongside the history, so one
+#     command answers both "what is it set to" and "is it actually firing there".
+#   - Read-only. Touches nothing, sends nothing anywhere.
+#
+# Why you'd run it: after changing autoCompactWindow, the next `auto` row should
+# fire at roughly the new value. If it still fires at the old one, the setting is
+# not taking effect. See the TUNING note printed at the foot of the output.
+#
+# Project-agnostic; run from anywhere.
+#
+# Usage:
+#   compact-watch            # last 20 compactions, newest first
+#   compact-watch 50         # last 50
+#   compact-watch --auto     # auto-triggered only (hide manual /compact runs)
+#
+set -euo pipefail
+
+LIMIT=20
+ONLY_AUTO=0
+for arg in "$@"; do
+  case "$arg" in
+    --auto) ONLY_AUTO=1 ;;
+    ''|*[!0-9]*) ;;
+    *) LIMIT="$arg" ;;
+  esac
+done
+
+LIMIT="$LIMIT" ONLY_AUTO="$ONLY_AUTO" python3 - <<'PY'
+import json, glob, os, datetime
+
+SETTINGS = os.path.expanduser('~/.claude/settings.json')
+limit     = int(os.environ.get('LIMIT', 20))
+only_auto = os.environ.get('ONLY_AUTO') == '1'
+
+# Compactions from before the settings file was last touched say nothing about the
+# current window, so the verdict below only counts ones after it. Approximate but
+# right in the case that matters: "I just changed this, has it taken effect yet?"
+try:
+    changed_at = datetime.datetime.fromtimestamp(
+        os.path.getmtime(SETTINGS), datetime.timezone.utc).isoformat()
+except OSError:
+    changed_at = ''
+
+# --- current setting -------------------------------------------------------
+window, enabled, note = None, None, ''
+try:
+    with open(SETTINGS) as fh:
+        cfg = json.load(fh)
+    window  = cfg.get('autoCompactWindow')
+    enabled = cfg.get('autoCompactEnabled')
+except FileNotFoundError:
+    note = 'no settings file found'
+except json.JSONDecodeError as e:
+    # Worth shouting about: malformed JSON silently disables EVERY setting in the file.
+    note = f'!! {SETTINGS} is not valid JSON ({e}) - all settings in it are being ignored'
+
+print()
+print(f"  settings file      {SETTINGS}")
+print(f"  autoCompactEnabled {enabled if enabled is not None else '(unset - defaults on)'}")
+print(f"  autoCompactWindow  {format(window, ',') if isinstance(window, int) else '(unset - defaults to the 1,000,000 ceiling)'}")
+if note:
+    print(f"  {note}")
+print()
+
+# --- history ---------------------------------------------------------------
+rows = []
+for path in glob.glob(os.path.expanduser('~/.claude/projects/*/*.jsonl')):
+    for line in open(path, errors='ignore'):
+        if 'compact_boundary' not in line:
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        meta = rec.get('compactMetadata') or {}
+        if not meta:
+            continue
+        trigger = meta.get('trigger')
+        if only_auto and trigger != 'auto':
+            continue
+        rows.append((
+            rec.get('timestamp', ''),
+            trigger,
+            meta.get('preTokens', 0),
+            meta.get('postTokens', 0),
+            meta.get('durationMs', 0),
+        ))
+
+rows.sort(reverse=True)
+
+if not rows:
+    print("  no compactions recorded yet\n")
+else:
+    print(f"  {'when':<21}{'trigger':<9}{'fired at':>12}{'left with':>12}{'took':>9}")
+    print(f"  {'-' * 21}{'-' * 9}{'-' * 12}{'-' * 12}{'-' * 9}")
+    for ts, trigger, pre, post, ms in rows[:limit]:
+        print(f"  {ts[:19]:<21}{str(trigger):<9}{pre:>12,}{post:>12,}{ms / 1000:>8.0f}s")
+    print()
+    auto  = [r for r in rows if r[1] == 'auto']
+    since = [r for r in auto if changed_at and r[0] > changed_at]
+    if isinstance(window, int):
+        if since:
+            drift = abs(since[0][2] - window) / window
+            verdict = ("matches - the setting is taking effect" if drift < 0.25 else
+                       "does NOT match - the setting may not be taking effect")
+            print(f"  configured window {window:,}  |  first auto since the change fired at "
+                  f"{since[0][2]:,}  |  {verdict}")
+        else:
+            print(f"  configured window {window:,}  |  no auto compaction yet since the setting")
+            print(f"  was last changed ({changed_at[:19] or 'unknown'}) - nothing to verify against.")
+            if auto:
+                print(f"  For reference, the last one before that fired at {auto[0][2]:,}.")
+    print()
+
+# --- tuning note -----------------------------------------------------------
+print(f"""  TUNING - if compaction fires too often, or the pauses interrupt you:
+
+    edit   {SETTINGS}
+    key    "autoCompactWindow"   (integer, 100000-1000000; lower = compact sooner)
+
+    Raise it toward 300000-400000 if you are losing context you still needed, or
+    if the pauses get annoying: each compaction takes ~2 minutes and drops the
+    conversation to a ~15k-token summary. Lower it toward 150000 to cut the
+    tokens re-sent on every turn, which is where nearly all usage goes.
+
+    Anything outside 100000-1000000 is rejected by the settings schema.
+""")
+PY
