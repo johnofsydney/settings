@@ -4,7 +4,7 @@
 #
 # Order of operations:
 #   1. Install Homebrew if it's missing.
-#   2. Run the five numbered setup scripts in order, prompting before each.
+#   2. Run the six numbered setup scripts in order, prompting before each.
 #      (setup_001 installs git, setup_002 configures it, etc.)
 #
 # Every script is idempotent, so this is safe to re-run.
@@ -63,7 +63,8 @@ for script in \
   setup_scripts/setup_002_configure_git.sh \
   setup_scripts/setup_003_setup_dot_files.sh \
   setup_scripts/setup_004_app_preferences.sh \
-  setup_scripts/setup_005_dev_stuff.sh
+  setup_scripts/setup_005_dev_stuff.sh \
+  setup_scripts/setup_006_claude_config.sh
 do
   echo
   echo "================================================================"

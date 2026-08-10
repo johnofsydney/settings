@@ -135,6 +135,27 @@ alias ch=gch
 # prompts go to stderr) — a script can't cd the parent shell, so this function does it.
 wt() { local d; d="$(worktree print_path "$@")" && cd "$d"; }
 
+# Claude Code: layer this machine's model/effort over the shared base config.
+#
+# ~/.claude/settings.json is a symlink to claude/settings.json in this repo — shared
+# by every machine (permissions, hooks, statusLine, plugins). ~/.claude/overlay.json is
+# a symlink to claude/overlay-work.json OR claude/overlay-home.json; that symlink IS the
+# per-machine choice, which is why this wrapper is identical everywhere and can be
+# committed. --settings loads as `flagSettings`, which outranks `userSettings`, so the
+# overlay wins over the shared base. Both symlinks are made by setup_006.
+#
+# Caveat: this only applies to Claude launched from an interactive shell. A GUI-launched
+# IDE extension or a cron job bypasses it and gets the shared base — which is why the
+# base deliberately pins no model, and the home overlay pins rather than merely defaults.
+# See claude/README.md.
+claude() {
+  if [ -f "$HOME/.claude/overlay.json" ]; then
+    command claude --settings "$HOME/.claude/overlay.json" "$@"
+  else
+    command claude "$@"
+  fi
+}
+
 # zsh-syntax-highlighting (brew formula, installed by setup_001). $HOMEBREW_PREFIX
 # is set by `brew shellenv` in ~/.zprofile; fall back to the Apple-silicon default
 # so this also works on Intel. Guarded so a missing plugin doesn't error every shell.

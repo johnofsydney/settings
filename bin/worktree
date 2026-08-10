@@ -100,6 +100,148 @@ fi
 
 slugify() { echo "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g'; }
 
+# ---------------------------------------------------------------------------
+# Claude Code context seeding
+#
+# Claude Code resolves two things per-DIRECTORY, so neither reaches a sibling
+# worktree and both are silently lost on every ticket:
+#
+#   1. Auto-memory lives in ~/.claude/projects/<abs-path-slugified>/memory/. A new
+#      worktree = a new absolute path = a new EMPTY memory dir that dies with the
+#      branch. Measured before this was added: 43 memories in the main checkout, 0
+#      across 9 worktree slugs — one of which had 11 sessions. We point every
+#      worktree's memory dir at the main checkout's, so a repo has one canonical
+#      memory that outlives its branches.
+#
+#   2. Locally-excluded context files (CLAUDE.local.md, CONTEXT.md, docs/agents/, …)
+#      are untracked, so `git worktree add` never brings them across. We symlink each
+#      path listed in .git/info/exclude — which lives in the shared common dir, so the
+#      same list is visible from every worktree.
+#
+# Both are best-effort: nothing here may fail `worktree new`, hence the belt-and-braces
+# `|| return 0`. Removal is the dangerous direction — see claude_unseed.
+# ---------------------------------------------------------------------------
+
+# Absolute path -> Claude Code's project-dir slug. Both '/' and '.' become '-',
+# e.g. /Users/jo.smith/Projects/app -> -Users-jo-smith-Projects-app
+claude_slug() { echo "$1" | sed 's#[/.]#-#g'; }
+
+# Repo-relative paths from .git/info/exclude that are safe to symlink, one per line.
+# Skips anything that isn't an unambiguous relative path present in the main checkout.
+claude_excluded_paths() {
+  local exclude entry
+  exclude="$(git rev-parse --path-format=absolute --git-common-dir)/info/exclude"
+  [ -f "$exclude" ] || return 0
+  while IFS= read -r entry || [ -n "$entry" ]; do
+    entry="${entry%$'\r'}"
+    entry="${entry#"${entry%%[![:space:]]*}"}"   # ltrim
+    entry="${entry%"${entry##*[![:space:]]}"}"   # rtrim
+    case "$entry" in
+      '' | '#'*) continue ;;              # blank / comment
+      '!'*) continue ;;                   # negation, not a path
+      /*) continue ;;                     # absolute, not repo-relative
+      *'*'* | *'?'* | *'['*) continue ;;  # glob, ambiguous
+      *..*) continue ;;                   # traversal
+    esac
+    entry="${entry%/}"                    # docs/agents/ -> docs/agents
+    [ -n "$entry" ] || continue
+    [ -e "$MAIN/$entry" ] || continue     # not actually present in the main checkout
+    echo "$entry"
+  done < "$exclude"
+  return 0
+}
+
+claude_seed() {   # worktree_dir
+  local dir="$1" main_mem wt_proj wt_mem entry src dst linked=0 count
+
+  main_mem="$HOME/.claude/projects/$(claude_slug "$MAIN")/memory"
+  wt_proj="$HOME/.claude/projects/$(claude_slug "$dir")"
+  wt_mem="$wt_proj/memory"
+
+  if [ -d "$main_mem" ]; then
+    # Never displace a real directory — only ever create, or refresh our own symlink.
+    if [ -L "$wt_mem" ] || [ ! -e "$wt_mem" ]; then
+      if mkdir -p "$wt_proj" 2>/dev/null && ln -sfn "$main_mem" "$wt_mem" 2>/dev/null; then
+        count="$(find "$main_mem" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')"
+        echo "▶ claude memory → shared with $REPO_NAME main checkout ($count files)"
+      fi
+    fi
+  fi
+
+  while IFS= read -r entry; do
+    [ -n "$entry" ] || continue
+    src="$MAIN/$entry"
+    dst="$dir/$entry"
+    if [ -e "$dst" ] || [ -L "$dst" ]; then continue; fi
+    mkdir -p "$(dirname "$dst")" 2>/dev/null || continue
+
+    if [ -d "$src" ] && [ ! -L "$src" ]; then
+      # A DIRECTORY entry is written as a real directory holding symlinks to its
+      # children, NOT as one symlink to the directory. The exclude rule for a dir is
+      # normally "docs/agents/" with a trailing slash, which git matches against
+      # directories only — a symlink is not a directory to git, so a single link
+      # would leave the path UNIGNORED. The worktree would then read as dirty, and
+      # `worktree rm` would route every removal through its type-the-branch-name
+      # "you will lose work" path. A real dir matches the rule, so the whole subtree
+      # below it is ignored no matter what the children are.
+      mkdir -p "$dst" 2>/dev/null || continue
+      local child cdst
+      for child in "$src"/* "$src"/.[!.]*; do
+        [ -e "$child" ] || continue
+        cdst="$dst/$(basename "$child")"
+        if [ -e "$cdst" ] || [ -L "$cdst" ]; then continue; fi
+        ln -sfn "$child" "$cdst" 2>/dev/null || true
+      done
+      linked=$((linked + 1))
+    elif ln -sfn "$src" "$dst" 2>/dev/null; then
+      linked=$((linked + 1))
+    fi
+  done < <(claude_excluded_paths)
+
+  if [ "$linked" -gt 0 ]; then
+    echo "▶ claude context → linked $linked excluded path(s) from the main checkout"
+  fi
+  return 0
+}
+
+# Remove what claude_seed created, BEFORE the worktree is deleted.
+#
+# Safety: every removal here is `rm -f` on a path first confirmed to be a SYMLINK
+# (-L). Never `rm -rf`, never a path that isn't a link. The memory symlink points at
+# the main checkout's real memory dir; following it would delete the repo's entire
+# accumulated memory, and the excluded-path links point at the main checkout's real
+# CLAUDE.local.md / CONTEXT.md / docs/. `rm -f` on a symlink unlinks the link itself
+# and never touches the target — that is the whole reason this runs before, rather
+# than relying on `git worktree remove --force` to do the right thing.
+claude_unseed() {   # worktree_dir
+  local dir="$1" wt_mem entry dst
+
+  wt_mem="$HOME/.claude/projects/$(claude_slug "$dir")/memory"
+  if [ -L "$wt_mem" ]; then
+    rm -f "$wt_mem"
+  fi
+  # The project dir itself is left alone: it also holds this worktree's transcripts.
+
+  while IFS= read -r entry; do
+    [ -n "$entry" ] || continue
+    dst="$dir/$entry"
+    if [ -L "$dst" ]; then
+      rm -f "$dst"
+    elif [ -d "$dst" ]; then
+      # Directory entries are seeded as a real dir of child symlinks (see claude_seed).
+      # Unlink the children, then rmdir — which refuses if anything real is left, so a
+      # file you created in there is never destroyed.
+      local child
+      for child in "$dst"/* "$dst"/.[!.]*; do
+        if [ -L "$child" ]; then rm -f "$child"; fi
+      done
+      rmdir "$dst" 2>/dev/null || true
+      rmdir "$(dirname "$dst")" 2>/dev/null || true   # e.g. docs/, if now empty
+    fi
+  done < <(claude_excluded_paths)
+  return 0
+}
+
 # Ask a yes/no question; 0 if yes. Shared by the rm paths.
 confirm() {   # "prompt" -> 0 if yes
   local ans; read -r -p "$1 [y/N] " ans || ans=""
@@ -379,6 +521,10 @@ cmd_new() {
   echo "▶ steps    :"
   echo "    - create worktree + branch at the paths above"
   echo "    - $env_line)"
+  local claude_n; claude_n="$(claude_excluded_paths | wc -l | tr -d ' ')"
+  if [ -d "$HOME/.claude/projects/$(claude_slug "$MAIN")/memory" ] || [ "$claude_n" -gt 0 ]; then
+    echo "    - link claude context (shared memory + $claude_n excluded path(s))"
+  fi
   if [ -f "$MAIN/package.json" ]; then
     node_install_step "$MAIN"
     echo "    - $PM_LABEL"
@@ -434,6 +580,10 @@ cmd_new() {
     echo "PORT=$port"; echo "VITE_RUBY_PORT=$vite_port"
     echo "$DB_ENV_VAR=$db"; echo "$TEST_DB_ENV_VAR=$test_db"
   } > "$dir/.env"
+
+  # Before the slow steps, so the worktree is usable by Claude even if a later
+  # bundle/db step fails and you fix it by hand.
+  claude_seed "$dir"
 
   if [ -f "$dir/package.json" ]; then
     node_install_step "$dir"
@@ -757,6 +907,11 @@ remove_worktree() {   # dir branch
   else
     echo "  (no bin/rails at $dir — skipping db drop; if needed: dropdb '$db'; dropdb '$test_db')"
   fi
+  # Unlink the Claude symlinks first. `git worktree remove --force` recursively
+  # deletes the directory, and these links point at the main checkout's real
+  # CLAUDE.local.md / CONTEXT.md / docs/ — unlink them ourselves rather than rely on
+  # the delete doing the right thing near live files. See claude_unseed.
+  claude_unseed "$dir"
   echo "▶ removing worktree..."
   git worktree remove "$dir" --force
   if [ -n "$branch" ]; then

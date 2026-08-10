@@ -1,5 +1,14 @@
 work_aliases.sh
 env_variables.sh
 
+# This repo's own Claude Code local settings — machine-specific, never shared.
+# Not to be confused with claude/, which IS the shared config (see claude/README.md).
+.claude/settings.local.json
+
+# Work-machine Claude context: internal team/project names, so it stays out of this
+# PUBLIC repo — same rule as work_aliases.sh. Costs nothing to sync, since the home
+# machine reads context-home.md instead. setup_006 creates an empty one if missing.
+claude/context-work.md
+
 .DS_Store
 **/.DS_Store
