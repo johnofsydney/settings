@@ -196,7 +196,8 @@
     "command": "if [ -f '/Users/john.coote/.orca/agent-hooks/claude-statusline.sh' ] && [ -r '/Users/john.coote/.orca/agent-hooks/claude-statusline.sh' ] && [ -x '/Users/john.coote/.orca/agent-hooks/claude-statusline.sh' ]; then /bin/sh '/Users/john.coote/.orca/agent-hooks/claude-statusline.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi"
   },
   "enabledPlugins": {
-    "mattpocock-skills@mattpocock": true
+    "mattpocock-skills@mattpocock": true,
+    "ruby-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "mattpocock": {
