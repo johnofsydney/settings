@@ -18,6 +18,12 @@ export GIT_MERGE_AUTOEDIT=no
 # from any directory. $SETTINGS_FOLDER is exported by ~/.zshrc (see setup_003).
 export PATH="$SETTINGS_FOLDER/bin:$PATH"
 
+# Force mise's shims ahead of /usr/bin explicitly. `mise activate`'s PATH
+# rewrite depends on zsh precmd/chpwd hooks firing, which some terminals
+# (e.g. Orca) don't trigger the same way iTerm does — without this, /usr/bin
+# wins the PATH race and system Ruby/Node get picked up instead of mise's.
+export PATH="$HOME/.local/share/mise/shims:$PATH"
+
 export HISTTIMEFORMAT="%d/%m/%y %T "
 export HISTFILE="$HOME/.zsh_history"
 export HISTSIZE=1000000000
