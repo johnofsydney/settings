@@ -36,8 +36,8 @@ splitting evenly?" is a question, and it has an answer worth writing down.
   PR? → It belongs in a **code comment**. Add it to the source. The PR comment, if any, just says
   you did.
 - Is it only interesting *relative to `main`* — "this is the third attempt", "this looks half-done
-  because the rest is LMCP-2031", "start with this file"? → It belongs **on the PR** and nowhere
-  else. It would be noise in the source once merged.
+  because the rest is in the follow-up ticket", "start with this file"? → It belongs **on the PR**
+  and nowhere else. It would be noise in the source once merged.
 
 This split is what stops the skill inflating source files with review chatter.
 

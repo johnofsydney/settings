@@ -81,7 +81,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if [ -f '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/john.coote/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "command": "if [ -f \"$HOME/.orca/agent-hooks/claude-hook.sh\" ] && [ -r \"$HOME/.orca/agent-hooks/claude-hook.sh\" ] && [ -x \"$HOME/.orca/agent-hooks/claude-hook.sh\" ]; then /bin/sh \"$HOME/.orca/agent-hooks/claude-hook.sh\"; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
             "timeout": 10
           }
         ]
@@ -92,7 +92,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if [ -f '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/john.coote/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "command": "if [ -f \"$HOME/.orca/agent-hooks/claude-hook.sh\" ] && [ -r \"$HOME/.orca/agent-hooks/claude-hook.sh\" ] && [ -x \"$HOME/.orca/agent-hooks/claude-hook.sh\" ]; then /bin/sh \"$HOME/.orca/agent-hooks/claude-hook.sh\"; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
             "timeout": 10
           }
         ]
@@ -103,7 +103,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if [ -f '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/john.coote/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "command": "if [ -f \"$HOME/.orca/agent-hooks/claude-hook.sh\" ] && [ -r \"$HOME/.orca/agent-hooks/claude-hook.sh\" ] && [ -x \"$HOME/.orca/agent-hooks/claude-hook.sh\" ]; then /bin/sh \"$HOME/.orca/agent-hooks/claude-hook.sh\"; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
             "timeout": 10
           }
         ]
@@ -114,7 +114,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if [ -f '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/john.coote/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "command": "if [ -f \"$HOME/.orca/agent-hooks/claude-hook.sh\" ] && [ -r \"$HOME/.orca/agent-hooks/claude-hook.sh\" ] && [ -x \"$HOME/.orca/agent-hooks/claude-hook.sh\" ]; then /bin/sh \"$HOME/.orca/agent-hooks/claude-hook.sh\"; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
             "timeout": 10
           }
         ]
@@ -125,7 +125,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if [ -f '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/john.coote/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "command": "if [ -f \"$HOME/.orca/agent-hooks/claude-hook.sh\" ] && [ -r \"$HOME/.orca/agent-hooks/claude-hook.sh\" ] && [ -x \"$HOME/.orca/agent-hooks/claude-hook.sh\" ]; then /bin/sh \"$HOME/.orca/agent-hooks/claude-hook.sh\"; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
             "timeout": 10
           }
         ]
@@ -136,7 +136,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if [ -f '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/john.coote/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "command": "if [ -f \"$HOME/.orca/agent-hooks/claude-hook.sh\" ] && [ -r \"$HOME/.orca/agent-hooks/claude-hook.sh\" ] && [ -x \"$HOME/.orca/agent-hooks/claude-hook.sh\" ]; then /bin/sh \"$HOME/.orca/agent-hooks/claude-hook.sh\"; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
             "timeout": 10
           }
         ]
@@ -148,7 +148,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if [ -f '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/john.coote/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "command": "if [ -f \"$HOME/.orca/agent-hooks/claude-hook.sh\" ] && [ -r \"$HOME/.orca/agent-hooks/claude-hook.sh\" ] && [ -x \"$HOME/.orca/agent-hooks/claude-hook.sh\" ]; then /bin/sh \"$HOME/.orca/agent-hooks/claude-hook.sh\"; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
             "timeout": 10
           }
         ]
@@ -160,7 +160,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if [ -f '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/john.coote/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "command": "if [ -f \"$HOME/.orca/agent-hooks/claude-hook.sh\" ] && [ -r \"$HOME/.orca/agent-hooks/claude-hook.sh\" ] && [ -x \"$HOME/.orca/agent-hooks/claude-hook.sh\" ]; then /bin/sh \"$HOME/.orca/agent-hooks/claude-hook.sh\"; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
             "timeout": 10
           }
         ]
@@ -172,7 +172,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if [ -f '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/john.coote/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "command": "if [ -f \"$HOME/.orca/agent-hooks/claude-hook.sh\" ] && [ -r \"$HOME/.orca/agent-hooks/claude-hook.sh\" ] && [ -x \"$HOME/.orca/agent-hooks/claude-hook.sh\" ]; then /bin/sh \"$HOME/.orca/agent-hooks/claude-hook.sh\"; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
             "timeout": 10
           }
         ]
@@ -184,7 +184,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if [ -f '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/john.coote/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/john.coote/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "command": "if [ -f \"$HOME/.orca/agent-hooks/claude-hook.sh\" ] && [ -r \"$HOME/.orca/agent-hooks/claude-hook.sh\" ] && [ -x \"$HOME/.orca/agent-hooks/claude-hook.sh\" ]; then /bin/sh \"$HOME/.orca/agent-hooks/claude-hook.sh\"; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
             "timeout": 10
           }
         ]
@@ -193,7 +193,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "if [ -f '/Users/john.coote/.orca/agent-hooks/claude-statusline.sh' ] && [ -r '/Users/john.coote/.orca/agent-hooks/claude-statusline.sh' ] && [ -x '/Users/john.coote/.orca/agent-hooks/claude-statusline.sh' ]; then /bin/sh '/Users/john.coote/.orca/agent-hooks/claude-statusline.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi"
+    "command": "if [ -f \"$HOME/.orca/agent-hooks/claude-statusline.sh\" ] && [ -r \"$HOME/.orca/agent-hooks/claude-statusline.sh\" ] && [ -x \"$HOME/.orca/agent-hooks/claude-statusline.sh\" ]; then /bin/sh \"$HOME/.orca/agent-hooks/claude-statusline.sh\"; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi"
   },
   "enabledPlugins": {
     "mattpocock-skills@mattpocock": true,

@@ -161,9 +161,9 @@ Possible follow-up: reword these two so each file is fully self-explanatory.
 
 ### 2. Project-specific references
 
-**No hardcoded project names** — grepped for `labmaster`, `lester`, `realhub`,
-`labflow`, `labby`: zero hits. Everything is derived dynamically (`basename
-$PWD`, git toplevel, `origin/HEAD`).
+**No hardcoded project names** — grepped for every repo and org name these scripts
+get run against: zero hits. Everything is derived dynamically (`basename $PWD`,
+git toplevel, `origin/HEAD`).
 
 **Stack-/environment-specific assumptions** a colleague on a different setup
 would trip on (most-coupled first):
@@ -179,7 +179,7 @@ would trip on (most-coupled first):
 | **backup-local-db** | Postgres via `postgres` role on localhost | `:23` | ❌ (db name is `$1`) |
 | **backup-local-db** | `<dir>_development` Rails db naming | `:5,17` | ✅ arg |
 | **dspec** | `bundle exec rspec`, Rails `app/`/`lib/`/`spec/` layout | throughout | ❌ (inherent to purpose) |
-| **dspec** | `spec/system/**` excluded *because "they trigger asset precompilation"* — that rationale is **labmaster-derived** (its `before(:suite)` hook); the skip itself is a fine general default | `:17,63` | — |
+| **dspec** | `spec/system/**` excluded *because "they trigger asset precompilation"* — that rationale came from **one particular app's `before(:suite)` hook**, not a universal truth; the skip itself is a fine general default | `:17,63` | — |
 | **dcop** | `bundle exec rubocop` | `:37` | ❌ (inherent) |
 | **delete-finished-branches** | core is pure git; **`gh` (optional)** enriches PR/merge/ownership detection — degrades gracefully without it (see section above; rewritten 2026-07-20) | — | — |
 
