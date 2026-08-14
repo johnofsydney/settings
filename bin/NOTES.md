@@ -170,9 +170,9 @@ would trip on (most-coupled first):
 
 | File | Assumption | Location | Overridable? |
 |---|---|---|---|
-| **worktree** | `overmind` process manager (socket hashing + `overmind quit`) | `:78`, `:151` | ❌ hardcoded |
-| **worktree** | `md5` binary — **macOS only** (Linux is `md5sum`) | `:78` | ❌ hardcoded |
-| **worktree** | `yarn` specifically (not npm/pnpm) | `:118` | ❌ hardcoded |
+| **worktree** | `overmind` process manager (socket hashing + `overmind quit`) | `overmind_socket_for`, `remove_worktree` | ❌ hardcoded, but skipped with a note when not installed |
+| **worktree** | md5 hashing (db-name suffix + overmind socket) | `md5_hex` | ✅ falls back to `md5sum` on Linux |
+| **worktree** | JS package manager | `node_install_step` | ✅ picks yarn/pnpm/npm from the lockfile, with corepack fallbacks |
 | **worktree** | `bin/dev` run command | `:19,36` | ✅ `WORKTREE_RUN_CMD` |
 | **worktree** | `DEV_DATABASE_NAME` db env var | `:18,35` | ✅ `WORKTREE_DB_ENV_VAR` |
 | **worktree** | Rails (`bin/rails db:prepare/drop`), `dotenv-rails`, `lsof` | `:121-123`, `:70` | ❌ (guarded by file existence) |
@@ -185,9 +185,11 @@ would trip on (most-coupled first):
 
 **Bottom line:** Ruby-tooling assumptions (`bundle exec rspec/rubocop`,
 `pg_dump`, Rails layout) are inherent to what the tools do — not defects. The
-genuinely non-portable, "would surprise a colleague" items are all in
-**`worktree`**: `overmind`, `md5` (macOS-only), and `yarn` are hardcoded with no
-override. `delete-finished-branches` is the only fully universal one. The only
+`worktree` items that used to head this list are now handled: md5 falls back to
+`md5sum`, the JS package manager is read from the lockfile, and a missing
+`overmind` is skipped with a note instead of assumed. `overmind` is still the only
+process manager it knows how to stop, because the socket path is a hash of the
+worktree dir. `delete-finished-branches` is the only fully universal one. The only
 spot where a *specific project's* behavior leaked into a comment is `dspec:17`
 (the asset-precompilation rationale) — the behavior is a sound default anywhere;
 only the justification is project-specific.
@@ -196,5 +198,8 @@ only the justification is project-specific.
 
 - [ ] Reword the two sibling-mentioning comments (`dcop:5`, `dspec:14`).
 - [ ] Generalize the `dspec:17` asset-precompilation comment.
-- [ ] Add env-var overrides for `worktree`'s `overmind`/`yarn`, and an
-      `md5`→`md5sum` fallback for Linux.
+- [x] Add env-var overrides for `worktree`'s `overmind`/`yarn`, and an
+      `md5`→`md5sum` fallback for Linux. *(done: `md5_hex` falls back to `md5sum`,
+      `node_install_step` reads the lockfile, missing `overmind` is skipped with a
+      note. A `WORKTREE_STOP_CMD` override is still not offered — the socket path is
+      overmind-specific, so another manager needs more than a command name.)*
