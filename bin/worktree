@@ -47,7 +47,8 @@
 #   worktree new <name> [port] [base-branch]   # create + set up   (base-branch default: auto-detected)
 #   worktree ls                                # list worktrees (table: branch/port/db)
 #   worktree rm [<name>|-i]                    # remove a worktree (menu if no name) + branch + drop db,
-#                                              #   then asks separately about deleting origin/<branch>
+#                                              #   then asks separately about deleting origin/<branch>,
+#                                              #   but only when every commit on it is yours
 #   worktree print_path [<name>|-i]            # print a worktree's path (menu if no name); wrap to cd
 #
 set -euo pipefail
@@ -624,8 +625,8 @@ cmd_new() {
 
   echo ""
   echo "✅ Ready. Start it with:"
-  echo "     cd $dir && PORT=$port $RUN_CMD"
-  echo "   (DB '$db' is automatic via .env; app on http://localhost:$port; vite dev server on $vite_port)"
+  echo "     cd $dir && $RUN_CMD"
+  echo "   (PORT $port and DB '$db' are automatic via .env; app on http://localhost:$port; vite dev server on $vite_port)"
 }
 
 cmd_ls() {
@@ -927,6 +928,62 @@ remove_worktree() {   # dir branch
   maybe_delete_remote_branch "$branch"
 }
 
+# The ref a branch's own commits are measured against. mainline_ref covers main/master;
+# fall back to origin's default branch, because a repo whose trunk is `develop` has no
+# main/master ref at all and would otherwise leave the "range" as the entire history.
+# Echoes nothing — and still returns 0 — when neither resolves, so a bare
+# `x="$(branch_base_ref)"` can't trip set -e.
+branch_base_ref() {
+  local m b
+  m="$(mainline_ref || true)"
+  if [ -n "$m" ]; then echo "$m"; return 0; fi
+  b="$(resolve_base || true)"
+  if [ -n "$b" ]; then
+    git rev-parse --verify --quiet "origin/$b" >/dev/null 2>&1 && { echo "origin/$b"; return 0; }
+    git rev-parse --verify --quiet "$b"        >/dev/null 2>&1 && { echo "$b";        return 0; }
+  fi
+  return 0
+}
+
+# The gate on remote deletion: is origin/<branch> yours to delete?
+#
+# git attributes commits, never refs — nothing records who pushed a branch into
+# existence — so authorship of the commits it carries is the honest proxy for "I
+# created this". Echoes a reason (naming the first author who isn't you) and returns 1
+# when the branch carries anyone else's work; stays silent and returns 0 only when
+# every commit is yours.
+#
+# Which commits are judged: the ones origin/<branch> adds on top of the trunk. When
+# that range is EMPTY the branch is fully merged — its commits now live in the trunk's
+# own history, where no range can isolate them — so the tip commit is judged instead,
+# which for a merged PR branch is the author's last commit. With no trunk ref at all,
+# the branch's entire history is judged rather than guessing at a range.
+#
+# Every failure answers "not yours": no user.email configured, no readable commits, an
+# unreadable ref. One-way by design — there is no flag, env var, or prompt that turns
+# a refusal here into a deletion.
+remote_branch_foreign_author() {   # branch -> "" + 0 (yours) | "<author>" + 1 (not yours)
+  local branch="$1" me="" base="" list="" author lower
+  me="$(git config user.email 2>/dev/null | tr '[:upper:]' '[:lower:]' || true)"
+  [ -n "$me" ] || { echo "no git user.email is set here, so no branch can be established as yours"; return 1; }
+
+  base="$(branch_base_ref)"
+  if [ -n "$base" ]; then
+    list="$(git log --format='%aE' "$base..origin/$branch" 2>/dev/null || true)"
+    [ -n "$list" ] || list="$(git log -1 --format='%aE' "origin/$branch" 2>/dev/null || true)"
+  else
+    list="$(git log --format='%aE' "origin/$branch" 2>/dev/null || true)"
+  fi
+  [ -n "$list" ] || { echo "no commits could be read from origin/$branch, so its authorship is unknown"; return 1; }
+
+  while IFS= read -r author; do
+    [ -n "$author" ] || continue
+    lower="$(printf '%s' "$author" | tr '[:upper:]' '[:lower:]')"
+    [ "$lower" = "$me" ] || { echo "it carries commits by $author"; return 1; }
+  done <<< "$list"
+  return 0
+}
+
 # Offer to delete the branch on origin too, once local teardown has succeeded.
 # Deliberately a SEPARATE question, asked after the fact: the local removal is
 # recoverable (the commits survive in the object store, and the restore command is
@@ -935,6 +992,13 @@ remove_worktree() {   # dir branch
 # checkout base. So it's never folded into the removal confirmation and never
 # implied by it. Only asked when origin actually has the branch, judged from the
 # origin/* mirror that fetch_origin refreshed at the top of cmd_rm.
+#
+# And only asked at all for a branch whose commits are all yours — see
+# remote_branch_foreign_author. Removing a worktree is a housekeeping act on YOUR
+# machine; deleting someone else's branch off the shared remote is not, and no
+# amount of confirming makes it a thing this command should do. When the branch
+# isn't yours the question is never put, and the manual command is printed instead
+# so the decision moves to you, deliberately, outside this script.
 #
 # The local branch is already gone by now, so merged-ness is assessed against
 # origin/<branch> directly rather than reusing ASSESS_BRANCH_NOTE (which described
@@ -956,6 +1020,15 @@ maybe_delete_remote_branch() {   # branch
 
   echo
   echo "▶ remote   : origin/$branch still exists  ${DIM}·${X} $note"
+
+  local foreign
+  if ! foreign="$(remote_branch_foreign_author "$branch")"; then
+    echo "${Y}⛔ leaving origin/$branch alone — $foreign${X}"
+    echo "${DIM}   worktree only offers to delete remote branches whose commits are all yours."
+    echo "   if it really is yours to remove:  git push origin --delete '$branch'${X}"
+    return 0
+  fi
+
   confirm "Also delete the remote branch origin/$branch?" || {
     echo "${DIM}   left origin/$branch alone — delete it later with:  git push origin --delete '$branch'${X}"
     return 0
@@ -1087,6 +1160,10 @@ COMMANDS
       Once the local teardown has succeeded, and only if origin still has the branch,
       it asks as a separate question whether to delete origin/<branch> too (defaults
       to no, and shows whether that branch is merged into mainline first).
+      That question is only ever put for a branch whose commits are ALL authored by
+      you (your git user.email). A remote branch carrying anyone else's commits is
+      left alone and the manual `git push origin --delete` is printed instead — there
+      is no flag or prompt that overrides it. Local teardown is unaffected.
       e.g.  worktree rm PROJ-123-fix-header
             worktree rm                     # interactive menu
 
