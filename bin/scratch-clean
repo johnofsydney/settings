@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+#
+# scratch-clean — delete throwaway files inside THIS Claude Code session's scratchpad.
+#
+# Exists because `Bash(rm:*)` is denied outright in claude/settings.json, and that deny is
+# absolute: it outranks permission allow rules AND a PreToolUse hook returning "allow"
+# (verified — the hook runs, returns allow, and the call is still refused). So an agent
+# cannot tidy up after itself with rm, and every session leaves its scratch dirs behind.
+#
+# Rather than punch a hole in the rm deny, deletion moves to a command that cannot be
+# pointed anywhere dangerous. The blanket rm deny stays exactly as it is; this is allowed
+# instead, via "Bash(scratch-clean:*)".
+#
+# What makes it safe is that the target is not a matter of what you type:
+#   - the root is DERIVED, never passed — it is the scratchpad of the session named by
+#     $CLAUDE_CODE_SESSION_ID, and there is no flag to override it
+#   - every target is resolved physically (symlinks followed, .. rejected) and must land
+#     strictly inside that root, or the command dies without deleting anything
+#   - the root itself is never removed; --all empties it and leaves the directory
+# With no session id in the environment there is no root to derive, so it refuses to run.
+#
+# Usage:
+#   scratch-clean <name|path>...   # delete these entries inside the scratchpad
+#   scratch-clean --all            # delete everything IN the scratchpad (keep the dir)
+#   scratch-clean --list           # list what's there
+#   scratch-clean --root           # print the resolved scratchpad path
+#   scratch-clean -n <name>...     # dry run: say what would go, delete nothing
+#
+set -euo pipefail
+
+ME="scratch-clean"
+die() { echo "$ME: $*" >&2; exit 1; }
+
+usage() {
+  cat <<'EOF'
+scratch-clean — delete throwaway files inside this Claude Code session's scratchpad.
+
+USAGE
+  scratch-clean <name|path>...   delete these entries inside the scratchpad
+  scratch-clean --all            delete everything in the scratchpad (the dir itself stays)
+  scratch-clean --list, -l       list the scratchpad's contents
+  scratch-clean --root           print the resolved scratchpad path
+  scratch-clean -n, --dry-run    with any of the above: report, delete nothing
+
+Names are taken relative to the scratchpad root, so `scratch-clean wt-test` is enough.
+An absolute path is accepted only if it resolves inside that root. The root comes from
+$CLAUDE_CODE_SESSION_ID and cannot be overridden.
+EOF
+}
+
+# The scratchpad of the session running this command. Both spellings of macOS's tmp are
+# globbed (/tmp is a symlink to /private/tmp) and the results deduped physically, so the
+# same directory found twice still counts as one. Anything other than exactly one match is
+# fatal: no guessing which scratchpad was meant.
+resolve_root() {
+  local sid="${CLAUDE_CODE_SESSION_ID:-}"
+  [ -n "$sid" ] || die "CLAUDE_CODE_SESSION_ID is not set — there is no session scratchpad to clean."
+  case "$sid" in
+    *[!a-zA-Z0-9-]*) die "refusing: session id contains unexpected characters." ;;
+  esac
+
+  local found="" d p
+  for d in /private/tmp/claude-*/*/"$sid"/scratchpad /tmp/claude-*/*/"$sid"/scratchpad; do
+    [ -d "$d" ] || continue
+    p="$(cd "$d" && pwd -P)"
+    found="$found$p
+"
+  done
+  found="$(printf '%s' "$found" | sort -u)"
+  [ -n "$found" ] || die "no scratchpad directory found for session $sid."
+  [ "$(printf '%s\n' "$found" | grep -c .)" -eq 1 ] || die "multiple scratchpad candidates for session $sid; refusing to guess."
+  printf '%s\n' "$found"
+}
+
+# A target -> its absolute physical path, or death. Relative names hang off the root; an
+# absolute path is allowed only where it lands inside the root. The parent is resolved with
+# `pwd -P` (so a symlinked route out is followed and then caught) and the basename appended,
+# which also lets a name that doesn't exist be reported honestly instead of crashing.
+resolve_target() {
+  local raw="$1" t parent base real
+  [ -n "$raw" ] || die "empty target."
+  case "$raw" in
+    *..*) die "refusing '$raw' — '..' is not allowed in a target." ;;
+  esac
+
+  case "$raw" in
+    /*) t="$raw" ;;
+    *)  t="$ROOT/$raw" ;;
+  esac
+  t="${t%/}"
+
+  parent="$(dirname "$t")"
+  base="$(basename "$t")"
+  case "$base" in
+    . | ..) die "refusing '$raw' — not a nameable entry." ;;
+  esac
+  [ -d "$parent" ] || die "refusing '$raw' — its parent directory does not exist: $parent"
+  parent="$(cd "$parent" && pwd -P)"
+  real="$parent/$base"
+
+  # Root-first: the root is not "outside" itself, and saying so reads like a bug.
+  [ "$real" != "$ROOT" ] || die "refusing to delete the scratchpad root; use --all to empty it."
+  case "$real" in
+    "$ROOT"/*) ;;
+    *) die "refusing '$raw' — resolves to $real, outside the scratchpad ($ROOT)." ;;
+  esac
+
+  printf '%s\n' "$real"
+}
+
+DRY=0
+MODE=""
+TARGETS=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -n | --dry-run) DRY=1 ;;
+    --all)          MODE="all" ;;
+    -l | --list)    MODE="list" ;;
+    --root)         MODE="root" ;;
+    -h | --help)    usage; exit 0 ;;
+    -*)             die "unknown option '$1'. Try --help." ;;
+    "")             die "empty target argument." ;;
+    *)              TARGETS="$TARGETS$1
+" ;;
+  esac
+  shift
+done
+
+ROOT="$(resolve_root)"
+
+case "$MODE" in
+  root) printf '%s\n' "$ROOT"; exit 0 ;;
+  list)
+    if [ -z "$(ls -A "$ROOT" 2>/dev/null)" ]; then echo "(scratchpad is empty: $ROOT)"; else
+      echo "$ROOT:"; ls -la "$ROOT" | sed 1d; fi
+    exit 0 ;;
+  all)
+    [ -z "$TARGETS" ] || die "--all takes no targets."
+    if [ -z "$(ls -A "$ROOT" 2>/dev/null)" ]; then echo "already empty: $ROOT"; exit 0; fi
+    if [ "$DRY" = 1 ]; then
+      echo "would empty $ROOT:"; find "$ROOT" -mindepth 1 -maxdepth 1 | sed 's|^|  |'; exit 0
+    fi
+    find "$ROOT" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+    echo "emptied $ROOT"
+    exit 0 ;;
+esac
+
+[ -n "$TARGETS" ] || { usage; exit 1; }
+
+# Resolve every target BEFORE deleting any of them, so a bad argument in the list aborts
+# the whole run rather than taking out the entries that happened to come first.
+resolved=""
+while IFS= read -r raw; do
+  [ -n "$raw" ] || continue
+  resolved="$resolved$(resolve_target "$raw")
+"
+done <<EOF
+$TARGETS
+EOF
+
+while IFS= read -r path; do
+  [ -n "$path" ] || continue
+  if [ ! -e "$path" ] && [ ! -L "$path" ]; then
+    echo "  (not there: ${path#"$ROOT"/})"
+    continue
+  fi
+  if [ "$DRY" = 1 ]; then
+    echo "  would delete: ${path#"$ROOT"/}"
+  else
+    rm -rf "$path"
+    echo "  deleted: ${path#"$ROOT"/}"
+  fi
+done <<EOF
+$resolved
+EOF
