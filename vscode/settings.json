@@ -293,8 +293,6 @@
   "iex": false
 },
 "editor.unicodeHighlight.nonBasicASCII": false,
-"gitlens.ai.model": "vscode",
-"gitlens.ai.vscode.model": "copilot:gpt-4.1",
 "rubyLsp.addonSettings": {
 },
 "rubyLsp.formatter": "standard",

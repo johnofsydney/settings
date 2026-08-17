@@ -227,5 +227,6 @@
   "autoMode": {
     "classifyAllShell": true
   },
-  "voiceEnabled": false
+  "voiceEnabled": false,
+  "skipDangerousModePermissionPrompt": true
 }
