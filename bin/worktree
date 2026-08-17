@@ -15,7 +15,11 @@
 #     bin/rails db:prepare — skipped if no bin/rails. One dev db + one test db is
 #     deliberate: no parallel_tests per-worker copies are created or dropped.
 #   - a per-worktree .env pinning PORT + the dev/test DB env vars (dotenv-rails
-#     picks the DBs up automatically for every rails command in that worktree)
+#     picks the DBs up automatically for every rails command in that worktree).
+#     Seeded from the main checkout's .env when there is one: that file is normally
+#     gitignored, so `git worktree add` never brings it across and a worktree would
+#     otherwise start with none of the repo's local credentials. Every key except
+#     the four we manage is carried over verbatim.
 #   - a PORT: the ticket number from the name if usable+free (PROJ-1989 -> 1989),
 #     else an auto-picked free candidate
 #   - a VITE_RUBY_PORT in the same .env, always — vite.json hardcodes one dev-server
@@ -25,7 +29,9 @@
 #
 # Port pins are checked against every worktree of this repo AND every sibling
 # directory of the main checkout, so a pin belonging to another project (or to an
-# orphan directory git no longer tracks) still counts as taken.
+# orphan directory git no longer tracks) still counts as taken. PORT and
+# VITE_RUBY_PORT share ONE number space: both keys are read into the same set, and
+# any candidate is rejected if either key pinned it anywhere.
 #
 # Test-DB isolation matters: in development `db:drop`/`db:create` act on BOTH the
 # dev and the test database. Isolating the test DB per worktree (rather than
@@ -34,7 +40,7 @@
 # effect, the project's database.yml `test:` section must read $TEST_DATABASE_NAME
 # (or whatever WORKTREE_TEST_DB_ENV_VAR names).
 #
-# Config (override via env before calling, or a per-repo defaults block):
+# Config (override via env before calling):
 #   WORKTREE_DB_ENV_VAR        env var database.yml reads for dev  (default: DEV_DATABASE_NAME)
 #   WORKTREE_TEST_DB_ENV_VAR   env var database.yml reads for test (default: TEST_DATABASE_NAME)
 #   WORKTREE_RUN_CMD           command to start the dev stack      (default: bin/dev)
@@ -47,21 +53,71 @@
 #   worktree new <name> [port] [base-branch]   # create + set up   (base-branch default: auto-detected)
 #   worktree ls                                # list worktrees (table: branch/port/db)
 #   worktree rm [<name>|-i]                    # remove a worktree (menu if no name) + branch + drop db,
-#                                              #   then asks separately about deleting origin/<branch>
+#                                              #   then asks separately about deleting origin/<branch>,
+#                                              #   but only when every commit on it is yours
 #   worktree print_path [<name>|-i]            # print a worktree's path (menu if no name); wrap to cd
 #
 set -euo pipefail
 
-trap '[ -t 1 ] && printf "\033[?25h"' EXIT INT TERM   # never leave the terminal cursor hidden
+show_cursor() { [ -t 1 ] && printf '\033[?25h'; return 0; }   # never leave it hidden
+
+# Set by cmd_new the moment the worktree exists on disk, so the exit hook can tell you
+# what was left behind if a later setup step (bundle / db:prepare) fails and `set -e`
+# takes the script out before the "✅ Ready" block.
+WT_CREATED_DIR=""; WT_CREATED_NAME=""
+
+on_exit() {
+  local rc=$?          # must be the first command — captures the real exit status
+  show_cursor
+  if [ -n "$WT_CREATED_DIR" ] && [ "$rc" -ne 0 ]; then
+    echo "" >&2
+    echo "⚠ setup did not finish, but the worktree EXISTS at:" >&2
+    echo "    $WT_CREATED_DIR" >&2
+    echo "  its branch and .env are in place. Fix the failure above and re-run the" >&2
+    echo "  failed step by hand in that directory, or tear the whole thing down:" >&2
+    echo "    worktree rm $WT_CREATED_NAME" >&2
+  fi
+  return 0
+}
+
+# A handler that doesn't exit RESUMES the interrupted script — so the old shared
+# INT/TERM trap meant Ctrl-C could restore the cursor and then carry on tearing a
+# worktree down. Signals must re-raise as an exit; only EXIT is a pure cleanup hook.
+trap on_exit EXIT
+trap 'show_cursor; echo; echo "Interrupted." >&2; exit 130' INT
+trap 'show_cursor; exit 143' TERM
 
 # Anchor to the repo's MAIN worktree (the one holding the shared .git), NOT whichever
 # worktree we happen to be standing in. Deriving from --show-toplevel would bake the
 # current worktree's name into a new worktree's dir + db names whenever `new` is run
 # from inside another worktree — which is exactly what leaves an orphan that `rm` run
 # from elsewhere then can't find.
-MAIN="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
-PARENT="$(dirname "$MAIN")"
-REPO_NAME="$(basename "$MAIN")"
+#
+# Resolved TOLERANTLY, and every subcommand that needs a repo calls require_repo. The
+# failure has to be handled here rather than left to `set -e`, because `dirname` of a
+# failed substitution SUCCEEDS with ".": outside a repo this used to set MAIN=".",
+# PARENT=".", REPO_NAME="." and carry on with garbage paths, after printing a bare
+# "fatal: not a git repository" above the usage text.
+MAIN=""; PARENT=""; REPO_NAME=""
+GIT_COMMON_DIR=""
+if GIT_COMMON_DIR="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" &&
+   [ -n "$GIT_COMMON_DIR" ]; then
+  MAIN="$(dirname "$GIT_COMMON_DIR")"
+  PARENT="$(dirname "$MAIN")"
+  REPO_NAME="$(basename "$MAIN")"
+fi
+
+# Where the caller's shell was when we started. `rm` uses it to notice that it is
+# about to delete the directory you are standing in.
+ORIG_PWD="$PWD"
+
+require_repo() {
+  [ -n "$MAIN" ] && return 0
+  echo "worktree: not a git repository." >&2
+  echo "  Run this from inside the repo you want a worktree of ('worktree --help' works anywhere)." >&2
+  exit 1
+}
+
 DB_ENV_VAR="${WORKTREE_DB_ENV_VAR:-DEV_DATABASE_NAME}"
 TEST_DB_ENV_VAR="${WORKTREE_TEST_DB_ENV_VAR:-TEST_DATABASE_NAME}"
 RUN_CMD="${WORKTREE_RUN_CMD:-bin/dev}"
@@ -99,6 +155,46 @@ else
 fi
 
 slugify() { echo "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g'; }
+
+# md5 hex digest of stdin. macOS ships `md5`, Linux ships `md5sum` — the digest is the
+# same either way, so a db-name suffix or overmind socket path computed on one is
+# reproducible on the other. Used where a SHORT deterministic hash is needed and
+# `rm` must recompute the identical value at teardown.
+md5_hex() {
+  if command -v md5 >/dev/null 2>&1; then md5
+  elif command -v md5sum >/dev/null 2>&1; then md5sum | cut -d' ' -f1
+  else
+    echo "ERROR: neither md5 nor md5sum found — needed for db + socket naming." >&2
+    return 1
+  fi
+}
+
+# Read KEY's value out of an .env file: everything after the FIRST '=', with a trailing
+# CR, surrounding whitespace, a trailing ' # comment', and wrapping quotes removed —
+# the same shape dotenv accepts. Echoes nothing (and still returns 0) when the file or
+# the key is absent, so a bare `v="$(env_value …)"` can't trip set -e.
+#
+# This replaced `grep -E "^KEY=" | cut -d= -f2` everywhere, which silently truncated
+# any value containing a second '=' and, worse, returned an untrimmed value that then
+# failed an exact-match pin comparison — i.e. a hand-edited `PORT=3001 # rails` became
+# an INVISIBLE pin, which is a duplicate port waiting to happen.
+env_value() {   # file key -> value | ""
+  local file="$1" key="$2" line
+  [ -f "$file" ] || return 0
+  line="$(grep -E "^[[:space:]]*${key}[[:space:]]*=" "$file" | tail -n1 || true)"
+  [ -n "$line" ] || return 0
+  line="${line#*=}"
+  line="${line%$'\r'}"
+  line="$(printf '%s' "$line" | sed -E 's/[[:space:]]+#.*$//')"        # trailing comment
+  line="${line#"${line%%[![:space:]]*}"}"                              # ltrim
+  line="${line%"${line##*[![:space:]]}"}"                              # rtrim
+  case "$line" in
+    \"*\") line="${line#\"}"; line="${line%\"}" ;;
+    \'*\') line="${line#\'}"; line="${line%\'}" ;;
+  esac
+  printf '%s\n' "$line"
+  return 0
+}
 
 # ---------------------------------------------------------------------------
 # Claude Code context seeding
@@ -255,6 +351,12 @@ confirm() {   # "prompt" -> 0 if yes
 # printed ONLY if it fails — so, unlike a bare `>/dev/null`, a real error (a failed
 # bundle/yarn/migrate) is surfaced instead of swallowed. No TTY (piped/CI): the
 # animation is dropped and it just prints one "done (Ns)" line.
+#
+# stdin is /dev/null for both paths. The interactive path backgrounds the command to
+# animate over it, which leaves it with no controlling terminal anyway — so anything
+# that prompts (bundler asking for a credential, npm asking to authenticate) would sit
+# there forever behind a cheerful spinner. Closed stdin turns that hang into an
+# immediate, visible failure with the real error in the log.
 SPIN=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
 run_step() {
   local label="$1"; shift
@@ -265,7 +367,7 @@ run_step() {
 
   # Non-interactive: no animation, just run, time it, and dump output on failure.
   if [ ! -t 1 ]; then
-    "$@" >"$log" 2>&1 || rc=$?
+    "$@" >"$log" 2>&1 </dev/null || rc=$?
     if [ "$rc" -eq 0 ]; then
       echo "✓ $label (done, $((SECONDS - start))s)"
     else
@@ -275,7 +377,7 @@ run_step() {
   fi
 
   # Interactive: animate a one-line spinner while the command runs in the background.
-  "$@" >"$log" 2>&1 &
+  "$@" >"$log" 2>&1 </dev/null &
   local pid=$! i=0
   printf '\033[?25l'                                            # hide cursor
   while kill -0 "$pid" 2>/dev/null; do
@@ -311,7 +413,7 @@ db_stem_for() {   # slug -> db stem
   local name="${REPO_NAME}_${body}"
   local max=51
   [ "${#name}" -le "$max" ] && { echo "$name"; return; }
-  local hash; hash="$(echo -n "$slug" | md5 | cut -c1-8)"
+  local hash; hash="$(echo -n "$slug" | md5_hex | cut -c1-8)"
   local prefix="${REPO_NAME}_"
   local keep=$(( max - ${#prefix} - 9 ))   # 9 = "_" + 8-char hash
   [ "$keep" -lt 1 ] && keep=1              # pathological: repo name alone blows the budget
@@ -328,14 +430,22 @@ branch_exists() {
 # Pick the branch new work should fork from, in priority order:
 #   1. WORKTREE_BASE_BRANCH override
 #   2. origin's default branch (origin/HEAD)  3. main / master
+#   4. whatever the main checkout has checked out right now
 # Call after `git fetch` so remote refs are current.
 resolve_base() {
-  if [ -n "${WORKTREE_BASE_BRANCH:-}" ]; then echo "$WORKTREE_BASE_BRANCH"; return; fi
+  if [ -n "${WORKTREE_BASE_BRANCH:-}" ]; then echo "$WORKTREE_BASE_BRANCH"; return 0; fi
   local head
   head="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')"
-  [ -n "$head" ] && { echo "$head"; return; }
-  for b in main master; do branch_exists "$b" && { echo "$b"; return; }; done
-  echo main   # nothing matched; let the downstream git error surface
+  [ -n "$head" ] && { echo "$head"; return 0; }
+  for b in main master; do branch_exists "$b" && { echo "$b"; return 0; }; done
+  # A repo whose trunk is `develop` reaches here with no main and no master. Falling back
+  # to the main checkout's own HEAD beats the old unconditional `echo main`, which handed
+  # `git worktree add` a ref that doesn't exist and made it fail with
+  # "fatal: invalid reference: main" — an error naming a branch the user never mentioned.
+  head="$(git -C "$MAIN" symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+  [ -n "$head" ] && { echo "$head"; return 0; }
+  echo main   # detached main checkout in a repo with no main/master: let git say so
+  return 0
 }
 
 # Every directory that could be holding a port-pinning .env. Two sources, unioned:
@@ -353,36 +463,66 @@ pin_dirs() {
   find "$PARENT" -mindepth 1 -maxdepth 1 -type d 2>/dev/null
 }
 
-# Values pinned for <key> across every candidate dir, deduped by the caller's grep.
+# Every port that is spoken for, as one newline-delimited set, built ONCE per run.
 #
-# The `|| true` is load-bearing, not defensive noise. Without it, the first .env that
-# EXISTS but has no <key> line makes grep exit 1; because that grep was the final
-# command of an `&& ` list, `set -e` is NOT suppressed and it kills the whole
-# while-loop subshell — silently truncating the scan so every pin AFTER that dir
-# becomes invisible. That is a duplicate port waiting to happen, and for
-# VITE_RUBY_PORT (a key most .env files don't have) it meant the scan returned
-# nothing at all.
-used_pins() {   # KEY -> pinned values, one per line
-  local key="$1" dir
+# Two things go in, and BOTH keys count for both questions:
+#   1. every PORT= and VITE_RUBY_PORT= pin in every candidate dir's .env
+#   2. every TCP port something is listening on right now
+#
+# Keying the scan per-env-var (the old `used_pins PORT` / `used_pins VITE_RUBY_PORT`)
+# was a real collision: PORT and VITE_RUBY_PORT draw from ONE number space, and vite is
+# derived as PORT+36, which for bases 3001-3064 lands back inside the 3001-3100
+# candidate range. So `worktree new PROJ-3037` (port from the ticket number) or an
+# explicit `worktree new foo 3037` passed the check while 3037 was already another
+# worktree's vite dev-server port — invisible, because only `^PORT=` was ever grepped.
+#
+# Loading once also drops the cost from "a git + find + a grep per sibling + an lsof,
+# PER CANDIDATE PORT" (hundreds of processes when the low end of the range is busy) to
+# a single pass. The listener half is therefore a SNAPSHOT — call pins_reset before
+# re-checking a port whose freshness matters, which is what closes the TOCTOU window
+# around `new`'s confirmation prompt.
+PIN_LIST=$'\n'
+PINS_LOADED=0
+
+pins_reset() { PINS_LOADED=0; }
+
+load_pins() {
+  [ "$PINS_LOADED" = 1 ] && return 0
+  local dir key v
+  PIN_LIST=$'\n'
   while read -r dir; do
     [ -f "$dir/.env" ] || continue
-    grep -E "^${key}=" "$dir/.env" | cut -d= -f2 || true
+    for key in PORT VITE_RUBY_PORT; do
+      v="$(env_value "$dir/.env" "$key")"
+      [ -n "$v" ] && PIN_LIST="${PIN_LIST}${v}"$'\n'
+    done
   done < <(pin_dirs | sort -u)
+
+  # One lsof for every listening socket, rather than one per candidate. The form
+  # matters: a bare `lsof -i :3001` ALSO matches outbound connections whose REMOTE
+  # port is 3001, so talking to someone else's 3001 makes the port look busy.
+  # -iTCP -sTCP:LISTEN restricts it to sockets actually bound here. The NAME column
+  # is "*:3000 (LISTEN)" / "[::1]:3000 (LISTEN)", so take the last field that ends in
+  # :<digits> rather than assuming a column number.
+  while read -r v; do
+    [ -n "$v" ] && PIN_LIST="${PIN_LIST}${v}"$'\n'
+  done < <(lsof -nP -iTCP -sTCP:LISTEN 2>/dev/null \
+             | awk '{ for (i = NF; i > 0; i--) if ($i ~ /:[0-9]+$/) { n = $i; sub(/.*:/, "", n); print n; break } }' \
+             | sort -u || true)
+
+  PINS_LOADED=1
+  return 0
 }
 
-# True if <port> is pinned in some .env, or something is listening on it right now.
-# The lsof form matters: a bare `lsof -i :3001` ALSO matches outbound connections
-# whose REMOTE port is 3001, so talking to someone else's 3001 makes the port look
-# busy. -iTCP:<p> -sTCP:LISTEN restricts it to a socket actually bound here.
-port_in_use() {   # KEY port -> 0 if taken
-  local key="$1" p="$2"
-  if used_pins "$key" | grep -qx "$p"; then return 0; fi
-  if lsof -nP -iTCP:"$p" -sTCP:LISTEN >/dev/null 2>&1; then return 0; fi
+# True if <port> is pinned by either key anywhere, or is being listened on.
+port_in_use() {   # port -> 0 if taken
+  local p="$1"
+  load_pins
+  case "$PIN_LIST" in *$'\n'"$p"$'\n'*) return 0 ;; esac
   return 1
 }
 
-port_free()      { ! port_in_use PORT "$1"; }
-vite_port_free() { ! port_in_use VITE_RUBY_PORT "$1"; }
+port_free() { ! port_in_use "$1"; }
 
 pick_port() {
   for p in "${CANDIDATE_PORTS[@]}"; do
@@ -401,7 +541,7 @@ pick_vite_port() {   # rails_port -> vite_port
   local base="$1" offset candidate
   for offset in 36 136 236 336 436 536; do
     candidate=$((base + offset))
-    [ "$candidate" -le 65535 ] && vite_port_free "$candidate" && { echo "$candidate"; return 0; }
+    [ "$candidate" -le 65535 ] && port_free "$candidate" && { echo "$candidate"; return 0; }
   done
   echo "ERROR: no free vite port near $base" >&2; return 1
 }
@@ -420,7 +560,7 @@ port_from_ticket() {   # name -> port | ""
 }
 
 # md5 of a path -> matches bin/dev's overmind socket hashing, so we can stop a stack.
-overmind_socket_for() { echo "/tmp/overmind-$(echo "$1" | md5 | cut -c1-8).sock"; }
+overmind_socket_for() { echo "/tmp/overmind-$(echo "$1" | md5_hex | cut -c1-8).sock"; }
 
 # Pick the JS install command for a worktree dir based on its lockfile, so a
 # repo's actual package manager is respected instead of always assuming yarn.
@@ -454,7 +594,75 @@ node_install_step() {   # dir -> sets PM_LABEL, PM_CMD
   fi
 }
 
+# Write the worktree's .env: every line of the source .env EXCEPT the four keys we
+# own, then our four. Source = the .env the fresh checkout already has (i.e. a TRACKED
+# .env), else the main checkout's.
+#
+# It used to be a plain `> "$dir/.env"` truncation, which got both halves wrong. A repo
+# that TRACKS a .env had it destroyed — leaving the worktree permanently modified, so
+# every later `rm` was routed through the type-the-branch-name "you will lose work"
+# path. And a repo whose .env is gitignored (the normal case) never had it copied at
+# all: `git worktree add` doesn't carry untracked files, so the worktree started with
+# none of the repo's local credentials and every rails command in it behaved
+# differently from the main checkout for no visible reason.
+write_env() {   # dir port vite_port db test_db
+  local dir="$1" port="$2" vite_port="$3" db="$4" test_db="$5"
+  local src="" tmp seeded=""
+  if [ -f "$dir/.env" ]; then src="$dir/.env"
+  elif [ -f "$MAIN/.env" ]; then src="$MAIN/.env"; seeded="main checkout"; fi
+
+  tmp="$(mktemp -t worktree-env)"
+  if [ -n "$src" ]; then
+    grep -vE "^[[:space:]]*(PORT|VITE_RUBY_PORT|${DB_ENV_VAR}|${TEST_DB_ENV_VAR})[[:space:]]*=" \
+      "$src" > "$tmp" || true
+    # A source file with no final newline would otherwise swallow our first key.
+    [ -s "$tmp" ] && [ -n "$(tail -c1 "$tmp")" ] && echo >> "$tmp"
+  fi
+  {
+    echo "PORT=$port"; echo "VITE_RUBY_PORT=$vite_port"
+    echo "$DB_ENV_VAR=$db"; echo "$TEST_DB_ENV_VAR=$test_db"
+  } >> "$tmp"
+  cat "$tmp" > "$dir/.env"    # copy, not mv: keeps the checkout's own file mode
+  rm -f "$tmp"
+
+  [ -n "$seeded" ] && echo "▶ .env      : seeded from the $seeded, with our 4 keys overridden"
+  # A tracked .env is now modified rather than clobbered, which is the best available
+  # outcome — but say so, because it makes the worktree read as dirty from birth.
+  if git -C "$dir" ls-files --error-unmatch .env >/dev/null 2>&1; then
+    echo "${Y}⚠ this repo TRACKS .env — our 4 keys are written into it, so the worktree${X}"
+    echo "${Y}  will show .env as modified. Commit or discard it as you would any change.${X}"
+  fi
+  return 0
+}
+
+# 0 when <dir> exists and holds nothing besides <allowed> — used to decide whether
+# git's collapsed "?? vendor/" entry is purely our own artifact or is hiding real work.
+dir_holds_only() {   # dir allowed_name
+  local d="$1" allow="$2"
+  [ -d "$d" ] || return 1
+  [ -z "$(find "$d" -mindepth 1 -maxdepth 1 ! -name "$allow" -print -quit 2>/dev/null)" ]
+}
+
+# Count the uncommitted changes in <dir> that are actually YOURS.
+#
+# `git status --porcelain` counts untracked files, and three of the things it finds are
+# ours, created by `worktree new` itself: .env, .bundle/config and vendor/bundle/. Unless
+# the user had separately added them to ~/.gitignore_global, a pristine worktree
+# therefore reported 1-3 "uncommitted changes", set ASSESS_RISKY=1, and made every
+# routine teardown demand the branch name be typed — which is exactly how a real
+# warning gets trained into noise. Only the UNTRACKED forms are discounted; a tracked
+# .env or .bundle/config that has been modified is real work and still counts.
+dirty_count() {   # dir -> count
+  local dir="$1" pat='\.env|\.bundle/config|vendor/bundle/'
+  # git collapses a wholly-untracked directory into one "?? vendor/" entry, so accept
+  # that form only when the directory holds nothing but our artifact.
+  dir_holds_only "$dir/.bundle" config && pat="$pat|\.bundle/"
+  dir_holds_only "$dir/vendor"  bundle && pat="$pat|vendor/"
+  git -C "$dir" status --porcelain 2>/dev/null | grep -cvE "^\?\? ($pat)\$" || true
+}
+
 cmd_new() {
+  require_repo
   local name="${1:?usage: worktree new <name> [port] [base-branch]}"
   local slug; slug="$(slugify "$name")"
   local dir="$PARENT/${REPO_NAME}-$slug"
@@ -517,10 +725,11 @@ cmd_new() {
 
   # Gate: spell out exactly what will happen, then let the user back out before
   # anything is created. Steps are conditional on what the repo actually has.
-  local env_line="write .env (PORT + VITE_RUBY_PORT + $DB_ENV_VAR + $TEST_DB_ENV_VAR"
+  local env_line="write .env (PORT + VITE_RUBY_PORT + $DB_ENV_VAR + $TEST_DB_ENV_VAR)"
+  [ -f "$MAIN/.env" ] && env_line="$env_line, seeded from the main checkout's .env"
   echo "▶ steps    :"
   echo "    - create worktree + branch at the paths above"
-  echo "    - $env_line)"
+  echo "    - $env_line"
   local claude_n; claude_n="$(claude_excluded_paths | wc -l | tr -d ' ')"
   if [ -d "$HOME/.claude/projects/$(claude_slug "$MAIN")/memory" ] || [ "$claude_n" -gt 0 ]; then
     echo "    - link claude context (shared memory + $claude_n excluded path(s))"
@@ -545,6 +754,11 @@ cmd_new() {
   # between: both checked "free", both were right at the time, both then pin it.
   # Re-checking here shrinks the window from "however long you took to answer y"
   # down to the second or so before .env is written.
+  #
+  # pins_reset is what makes that re-check mean anything: the pin + listener scan is
+  # cached after its first use (see load_pins), so without dropping the cache this
+  # would just re-read the same snapshot taken before the prompt and always agree.
+  pins_reset
   if ! port_free "$port"; then
     if [ "$port_src" = "explicit" ]; then
       echo "⚠ port $port was claimed while you were confirming — pinning it anyway," >&2
@@ -556,11 +770,17 @@ cmd_new() {
       echo "▶ port reassigned: $stolen → $port  ($stolen went to something else mid-prompt)"
     fi
   fi
-  if ! vite_port_free "$vite_port"; then
+  if ! port_free "$vite_port"; then
     local stolen_vite="$vite_port"
     vite_port="$(pick_vite_port "$port")"
     echo "▶ vite port reassigned: $stolen_vite → $vite_port"
   fi
+
+  # Drop admin entries for worktrees whose directory is gone (deleted by hand, or a
+  # half-finished teardown). Without this, `git worktree add` at a path git still has
+  # registered fails with "missing but already registered worktree" — after the
+  # confirmation and port selection, which is the most annoying moment to find out.
+  git worktree prune
 
   if git show-ref --verify --quiet "refs/heads/$name"; then
     # Existing local branch — check it out (base-branch arg is ignored).
@@ -576,10 +796,11 @@ cmd_new() {
     git worktree add -b "$name" "$dir" "$base"
   fi
 
-  {
-    echo "PORT=$port"; echo "VITE_RUBY_PORT=$vite_port"
-    echo "$DB_ENV_VAR=$db"; echo "$TEST_DB_ENV_VAR=$test_db"
-  } > "$dir/.env"
+  # From here on the worktree EXISTS, so a failure in any step below leaves something
+  # behind. Tell the exit hook what, so `set -e` can't walk out silently.
+  WT_CREATED_DIR="$dir"; WT_CREATED_NAME="$name"
+
+  write_env "$dir" "$port" "$vite_port" "$db" "$test_db"
 
   # Before the slow steps, so the worktree is usable by Claude even if a later
   # bundle/db step fails and you fix it by hand.
@@ -596,8 +817,10 @@ cmd_new() {
   # Gemfile requires Y" — e.g. one branch bumped erb and every other worktree's
   # bin/rails blew up on load. A per-worktree vendor/bundle fixes it: the bundle path
   # goes to .bundle/config (already gitignored by the repo), but the vendor/bundle/
-  # dir the gems install into is NOT — add `vendor/bundle/` to your global gitignore
-  # (~/.gitignore_global) so it never touches the repo or shows up for other users.
+  # dir the gems install into is NOT — adding `vendor/bundle/` to your global gitignore
+  # (~/.gitignore_global) keeps it out of everyone else's status output. `rm` no longer
+  # NEEDS you to have done that: dirty_count discounts these paths while they are
+  # untracked, so an un-ignored vendor/bundle can't flag a clean worktree as risky.
   # Must run before db:prepare — once isolated, bin/rails needs gems installed here.
   #
   # DOCKER INTERACTION — worth knowing if the project's dev stack runs in a container:
@@ -624,11 +847,12 @@ cmd_new() {
 
   echo ""
   echo "✅ Ready. Start it with:"
-  echo "     cd $dir && PORT=$port $RUN_CMD"
-  echo "   (DB '$db' is automatic via .env; app on http://localhost:$port; vite dev server on $vite_port)"
+  echo "     cd $dir && $RUN_CMD"
+  echo "   (PORT $port and DB '$db' are automatic via .env; app on http://localhost:$port; vite dev server on $vite_port)"
 }
 
 cmd_ls() {
+  require_repo
   # One vertical block per worktree instead of one wide row. Long branch/db names
   # blow out a horizontal table — every column widens to its longest cell, so a
   # single 60-char db name shoves everything sideways. Here each field is its own
@@ -684,12 +908,12 @@ cmd_ls() {
 ls_row() {   # dir branch
   local dir="$1" branch="${2:--}" port="-" vport="-" db="-" test_db="-"
   if [ -f "$dir/.env" ]; then
-    # `|| true` so a missing key doesn't trip `set -e` via the failing pipeline;
-    # the ${var:--} fallback then turns the empty result into a "-".
-    port="$(grep -E '^PORT=' "$dir/.env" | cut -d= -f2 || true)";              port="${port:--}"
-    vport="$(grep -E '^VITE_RUBY_PORT=' "$dir/.env" | cut -d= -f2 || true)";   vport="${vport:--}"
-    db="$(grep -E "^${DB_ENV_VAR}=" "$dir/.env" | cut -d= -f2 || true)";       db="${db:--}"
-    test_db="$(grep -E "^${TEST_DB_ENV_VAR}=" "$dir/.env" | cut -d= -f2 || true)"; test_db="${test_db:--}"
+    # env_value handles the missing-key case (echoes nothing, returns 0), so the
+    # ${var:--} fallback is all that's needed to turn that into a "-".
+    port="$(env_value "$dir/.env" PORT)";                     port="${port:--}"
+    vport="$(env_value "$dir/.env" VITE_RUBY_PORT)";           vport="${vport:--}"
+    db="$(env_value "$dir/.env" "$DB_ENV_VAR")";               db="${db:--}"
+    test_db="$(env_value "$dir/.env" "$TEST_DB_ENV_VAR")";     test_db="${test_db:--}"
   fi
   NAME+=("$(basename "$dir")"); BRANCH+=("$branch"); PORT+=("$port"); VPORT+=("$vport"); DB+=("$db"); TDB+=("$test_db")
 }
@@ -705,11 +929,20 @@ fetch_origin() {
 # The ref to test "is this branch already merged?" against — first that exists.
 # origin/* are local mirrors updated by fetch, so this is network-free (and may be
 # stale; a stale miss just makes us over-cautious, which is the safe direction).
+#
+# Echoes nothing and STILL RETURNS 0 when none of them resolve. The trailing `return 0`
+# is load-bearing: without it the function inherited the last failed `git rev-parse`'s
+# status, and every caller assigns it bare (`main="$(mainline_ref)"`), which under
+# `set -e` killed the whole script. In a repo whose trunk is `develop` — no main, no
+# master, no origin/main — that made `worktree rm` exit 1 after printing only
+# "▶ fetching origin…", with no error and nothing removed. Callers all handle an
+# empty result already; they were never given the chance to.
 mainline_ref() {
   local c
   for c in origin/main origin/master main master; do
-    git rev-parse --verify --quiet "$c" >/dev/null && { echo "$c"; return; }
+    git rev-parse --verify --quiet "$c" >/dev/null && { echo "$c"; return 0; }
   done
+  return 0
 }
 
 # Assess whether removing <dir>/<branch> would lose work. Sets globals:
@@ -719,7 +952,7 @@ mainline_ref() {
 assess_removal() {   # dir branch
   local dir="$1" branch="$2"
   ASSESS_RISKY=0; ASSESS_SHA=""; ASSESS_BRANCH_NOTE=""; ASSESS_WORK_NOTE=""
-  local main; main="$(mainline_ref)"
+  local main; main="$(mainline_ref)"   # "" in a repo with no main/master — handled below
   [ -n "$branch" ] && ASSESS_SHA="$(git rev-parse --verify --quiet "$branch" 2>/dev/null || true)"
 
   if [ -z "$branch" ]; then
@@ -743,7 +976,7 @@ assess_removal() {   # dir branch
     ASSESS_RISKY=1
   fi
 
-  local dirty; dirty="$(git -C "$dir" status --porcelain 2>/dev/null | wc -l | tr -d ' ' || true)"
+  local dirty; dirty="$(dirty_count "$dir" | tr -d ' ')"
   if [ "${dirty:-0}" -gt 0 ]; then
     ASSESS_WORK_NOTE="${R}$dirty uncommitted change(s) — would be discarded${X}"; ASSESS_RISKY=1
   else
@@ -776,9 +1009,10 @@ gather_worktrees() {   # [all] — pass "all" to include the main checkout (mark
 }
 
 # Render the gathered worktrees (WT_* arrays) as a numbered, column-sized table like
-# `ls`. mode=rm adds a risk dot + coloured STATE column (from assess_removal); mode=go
-# omits it. STATE is the trailing column, so its colour codes never break alignment.
-print_picker() {   # mode: rm|go
+# `ls`. mode=rm adds a risk dot + coloured STATE column (from assess_removal);
+# mode=plain omits it. STATE is the trailing column, so its colour codes never break
+# alignment.
+print_picker() {   # mode: rm|plain
   local mode="$1" i
   local -a NUM NAME STATE
   NUM=("#"); NAME=("WORKTREE"); STATE=("STATE")
@@ -806,10 +1040,13 @@ print_picker() {   # mode: rm|go
   fmt="$fmt\n"
   local rule; rule="$(printf '%.0s─' $(seq 1 $(( W[0] + W[1] + 4 ))))"
 
+  # ${X} goes inside the format, before fmt's trailing \n — appended after it, the reset
+  # landed on the next line and the header's bold bled into the rule below it.
+  local hdr_fmt="${BOLD}${fmt%'\n'}${X}\n"   # fmt's newline is a literal \n for printf
   if [ "$mode" = rm ]; then
-    printf "${BOLD}${fmt}${X}" "${NUM[0]}" "${NAME[0]}" "${STATE[0]}"
+    printf "$hdr_fmt" "${NUM[0]}" "${NAME[0]}" "${STATE[0]}"
   else
-    printf "${BOLD}${fmt}${X}" "${NUM[0]}" "${NAME[0]}"
+    printf "$hdr_fmt" "${NUM[0]}" "${NAME[0]}"
   fi
   printf "  ${DIM}%s${X}\n" "$rule"
   for i in "${!NUM[@]}"; do
@@ -854,9 +1091,20 @@ resolve_worktree() {   # query -> "<dir>\t<branch>"
 # delete its branch, and report ONLY what actually happened. Returns 1 if declined.
 remove_worktree() {   # dir branch
   local dir="$1" branch="$2"
+
+  # Stand in the MAIN checkout for the whole teardown. `git worktree remove` will
+  # happily delete the directory you are standing in, and every git call after that
+  # dies on "Unable to read current working directory" — so running `worktree rm` from
+  # inside the worktree being removed (the obvious way to finish a ticket) used to
+  # delete the directory, then FAIL to delete the branch (falling through to the
+  # "delete it manually" message) and silently skip the origin question entirely,
+  # because its `git rev-parse … || return 0` guard can't tell an unreadable cwd from
+  # "origin doesn't have this branch". Every path below is absolute, so moving is free.
+  cd "$MAIN"
+
   local db test_db
-  db="$(grep -E "^${DB_ENV_VAR}=" "$dir/.env" 2>/dev/null | cut -d= -f2 || true)"
-  test_db="$(grep -E "^${TEST_DB_ENV_VAR}=" "$dir/.env" 2>/dev/null | cut -d= -f2 || true)"
+  db="$(env_value "$dir/.env" "$DB_ENV_VAR")"
+  test_db="$(env_value "$dir/.env" "$TEST_DB_ENV_VAR")"
   # Fallback when the worktree has no .env: recompute from the dir name. The dir is
   # "<repo>-<slug>", so strip the repo prefix first — db_stem_for adds it back.
   local stem=""
@@ -893,9 +1141,16 @@ remove_worktree() {   # dir branch
     confirm "Remove this worktree, delete the branch, and drop these dbs?" || { echo "Aborted."; return 1; }
   fi
 
-  echo "▶ stopping stack (if running)..."
-  OVERMIND_SOCKET="$(overmind_socket_for "$dir")" overmind quit 2>/dev/null || true
-  sleep 1
+  if command -v overmind >/dev/null 2>&1; then
+    echo "▶ stopping stack (if running)..."
+    OVERMIND_SOCKET="$(overmind_socket_for "$dir")" overmind quit 2>/dev/null || true
+    sleep 1
+  else
+    # Only overmind is known here (its socket path is a hash of the worktree dir). Any
+    # other process manager has to be stopped by hand, and if the app is still holding
+    # a connection the db drop below will fail and say so.
+    echo "${DIM}▶ overmind not installed — skipping stack stop (stop it yourself if it's running)${X}"
+  fi
   if [ -x "$dir/bin/rails" ]; then
     echo "▶ dropping databases $db + $test_db..."
     # Both dev + test are isolated to this worktree, so db:drop (which in
@@ -923,8 +1178,74 @@ remove_worktree() {   # dir branch
     echo "${DIM}   restore the branch if needed:  git branch '$branch' $ASSESS_SHA${X}"
   fi
 
+  # Your shell is a different process, so its cwd can't be changed from here — but if it
+  # was sitting in the directory just deleted, every command you type next fails with a
+  # confusing "no such file or directory". Say so, and hand over the way out.
+  case "$ORIG_PWD" in
+    "$dir" | "$dir"/*)
+      echo "${Y}⚠ your shell is still inside the directory that was just removed.${X}"
+      echo "${Y}  run:  cd $MAIN${X}"
+      ;;
+  esac
+
   # Local teardown is done and reported. Now — and only now — ask about origin.
   maybe_delete_remote_branch "$branch"
+}
+
+# The ref a branch's own commits are measured against. mainline_ref covers main/master;
+# fall back to origin's default branch, because a repo whose trunk is `develop` has no
+# main/master ref at all and would otherwise leave the "range" as the entire history.
+# Echoes nothing — and still returns 0 — when neither resolves, so a bare
+# `x="$(branch_base_ref)"` can't trip set -e.
+branch_base_ref() {
+  local m b
+  m="$(mainline_ref || true)"
+  if [ -n "$m" ]; then echo "$m"; return 0; fi
+  b="$(resolve_base || true)"
+  if [ -n "$b" ]; then
+    git rev-parse --verify --quiet "origin/$b" >/dev/null 2>&1 && { echo "origin/$b"; return 0; }
+    git rev-parse --verify --quiet "$b"        >/dev/null 2>&1 && { echo "$b";        return 0; }
+  fi
+  return 0
+}
+
+# The gate on remote deletion: is origin/<branch> yours to delete?
+#
+# git attributes commits, never refs — nothing records who pushed a branch into
+# existence — so authorship of the commits it carries is the honest proxy for "I
+# created this". Echoes a reason (naming the first author who isn't you) and returns 1
+# when the branch carries anyone else's work; stays silent and returns 0 only when
+# every commit is yours.
+#
+# Which commits are judged: the ones origin/<branch> adds on top of the trunk. When
+# that range is EMPTY the branch is fully merged — its commits now live in the trunk's
+# own history, where no range can isolate them — so the tip commit is judged instead,
+# which for a merged PR branch is the author's last commit. With no trunk ref at all,
+# the branch's entire history is judged rather than guessing at a range.
+#
+# Every failure answers "not yours": no user.email configured, no readable commits, an
+# unreadable ref. One-way by design — there is no flag, env var, or prompt that turns
+# a refusal here into a deletion.
+remote_branch_foreign_author() {   # branch -> "" + 0 (yours) | "<author>" + 1 (not yours)
+  local branch="$1" me="" base="" list="" author lower
+  me="$(git config user.email 2>/dev/null | tr '[:upper:]' '[:lower:]' || true)"
+  [ -n "$me" ] || { echo "no git user.email is set here, so no branch can be established as yours"; return 1; }
+
+  base="$(branch_base_ref)"
+  if [ -n "$base" ]; then
+    list="$(git log --format='%aE' "$base..origin/$branch" 2>/dev/null || true)"
+    [ -n "$list" ] || list="$(git log -1 --format='%aE' "origin/$branch" 2>/dev/null || true)"
+  else
+    list="$(git log --format='%aE' "origin/$branch" 2>/dev/null || true)"
+  fi
+  [ -n "$list" ] || { echo "no commits could be read from origin/$branch, so its authorship is unknown"; return 1; }
+
+  while IFS= read -r author; do
+    [ -n "$author" ] || continue
+    lower="$(printf '%s' "$author" | tr '[:upper:]' '[:lower:]')"
+    [ "$lower" = "$me" ] || { echo "it carries commits by $author"; return 1; }
+  done <<< "$list"
+  return 0
 }
 
 # Offer to delete the branch on origin too, once local teardown has succeeded.
@@ -936,6 +1257,13 @@ remove_worktree() {   # dir branch
 # implied by it. Only asked when origin actually has the branch, judged from the
 # origin/* mirror that fetch_origin refreshed at the top of cmd_rm.
 #
+# And only asked at all for a branch whose commits are all yours — see
+# remote_branch_foreign_author. Removing a worktree is a housekeeping act on YOUR
+# machine; deleting someone else's branch off the shared remote is not, and no
+# amount of confirming makes it a thing this command should do. When the branch
+# isn't yours the question is never put, and the manual command is printed instead
+# so the decision moves to you, deliberately, outside this script.
+#
 # The local branch is already gone by now, so merged-ness is assessed against
 # origin/<branch> directly rather than reusing ASSESS_BRANCH_NOTE (which described
 # the now-deleted local ref).
@@ -944,7 +1272,7 @@ maybe_delete_remote_branch() {   # branch
   [ -n "$branch" ] || return 0
   git rev-parse --verify --quiet "refs/remotes/origin/$branch" >/dev/null 2>&1 || return 0
 
-  local main note; main="$(mainline_ref)"
+  local main note; main="$(mainline_ref)"   # "" when the repo has no main/master
   if [ -n "$main" ] && git merge-base --is-ancestor "origin/$branch" "$main" 2>/dev/null; then
     note="${G}merged into ${main#origin/}${X}"
   elif [ -n "$main" ]; then
@@ -956,6 +1284,15 @@ maybe_delete_remote_branch() {   # branch
 
   echo
   echo "▶ remote   : origin/$branch still exists  ${DIM}·${X} $note"
+
+  local foreign
+  if ! foreign="$(remote_branch_foreign_author "$branch")"; then
+    echo "${Y}⛔ leaving origin/$branch alone — $foreign${X}"
+    echo "${DIM}   worktree only offers to delete remote branches whose commits are all yours."
+    echo "   if it really is yours to remove:  git push origin --delete '$branch'${X}"
+    return 0
+  fi
+
   confirm "Also delete the remote branch origin/$branch?" || {
     echo "${DIM}   left origin/$branch alone — delete it later with:  git push origin --delete '$branch'${X}"
     return 0
@@ -996,6 +1333,7 @@ interactive_rm() {
 }
 
 cmd_rm() {
+  require_repo
   fetch_origin   # once, up front, so every assessment below sees current origin/* refs
 
   # No name (or -i) → interactive menu; otherwise resolve the given name directly.
@@ -1018,6 +1356,7 @@ cmd_rm() {
 # NAME it resolves directly (the main checkout included); with none (or -i) it shows an
 # interactive picker of ALL worktrees.
 cmd_print_path() {
+  require_repo
   if [ $# -gt 0 ] && [ "$1" != "-i" ] && [ "$1" != "--interactive" ]; then
     if [ "$1" = "$(basename "$MAIN")" ] || [ "$1" = main ]; then printf '%s\n' "$MAIN"; return 0; fi
     local resolved; resolved="$(resolve_worktree "$1")" || { echo "✗ no worktree matches '$1'." >&2; return 1; }
@@ -1054,7 +1393,10 @@ COMMANDS
       Create a worktree at ../<repo>-<name> on branch <name>, with its own dev +
       test databases (<repo>_<name>_development and <repo>_<name>_test),
       node_modules, and a
-      per-worktree .env pinning PORT + VITE_RUBY_PORT + the DB env vars.
+      per-worktree .env pinning PORT + VITE_RUBY_PORT + the DB env vars. That .env
+      is seeded from the main checkout's .env when there is one — it's normally
+      gitignored, so git can't bring it across — with those four keys overridden
+      and every other key carried over.
       Prompts before doing anything. If
       <name> already exists (locally or on origin) it's checked out; otherwise
       it's created from [base-branch].
@@ -1063,7 +1405,8 @@ COMMANDS
                      A port you pass explicitly is checked too — if it's already
                      pinned or listening, the command fails instead of clashing.
                      Pins are read from every worktree of this repo AND every
-                     sibling dir of the main checkout, so other projects count.
+                     sibling dir of the main checkout, so other projects count,
+                     and PORT + VITE_RUBY_PORT share one number space.
         base-branch  optional; defaults to origin's default branch, else main/master
       e.g.  worktree new PROJ-123-fix-header
             worktree new PROJ-123-fix-header 5000
@@ -1080,13 +1423,20 @@ COMMANDS
       then — after a confirmation — stop its stack, drop its dev + test databases,
       remove the worktree, and delete its branch. With NO name (or -i): pick from
       an interactive numbered menu that re-lists after each removal until you quit.
+      Safe to run from INSIDE the worktree being removed; it warns you to cd out.
       Safeguards: a branch with commits neither merged into mainline nor pushed to
       origin, or a worktree with uncommitted changes, is flagged (▲) and needs the
-      branch name typed to confirm. A restore command for the branch is printed and
+      branch name typed to confirm. The untracked files worktree itself created
+      (.env, .bundle/config, vendor/bundle/) don't count as uncommitted changes.
+      A restore command for the branch is printed and
       logged to <main>/.git/worktree-removed.log.
       Once the local teardown has succeeded, and only if origin still has the branch,
       it asks as a separate question whether to delete origin/<branch> too (defaults
       to no, and shows whether that branch is merged into mainline first).
+      That question is only ever put for a branch whose commits are ALL authored by
+      you (your git user.email). A remote branch carrying anyone else's commits is
+      left alone and the manual `git push origin --delete` is printed instead — there
+      is no flag or prompt that overrides it. Local teardown is unaffected.
       e.g.  worktree rm PROJ-123-fix-header
             worktree rm                     # interactive menu
 

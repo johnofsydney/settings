@@ -85,6 +85,7 @@ Six categories earn a comment. Nothing else does.
 | **Cross-repo contract** | "this line pairs with something you can't see from here" |
 | **Scope boundary** | "this looks half-done" — because the rest is another ticket |
 | **Reviewer shortcut** | "start here / this is generated / skim this" |
+| **Entry point** | "where does this change actually take effect?" — anchor on the line where the new behaviour is first invoked |
 
 ### 4. Filter hard
 
@@ -97,6 +98,13 @@ Drop a candidate if **any** of these is true:
   to discount everything else you wrote.
 - It's a general statement about the PR rather than a fact about *that line* → move it to the
   review body, or to the PR description.
+
+**Always keep the entry-point comment if one exists.** When the diff has a clear line where the
+change is first invoked — the call site the PR description is really about — anchor a comment
+there, even at the cost of dropping another candidate. A reviewer who can't find where the change
+takes effect reads the rest out of order. If the change has no single entry point (a pure
+refactor, a config change, a change spread evenly across peers), say so and skip it rather than
+inventing one.
 
 Then apply the volume cap: **roughly one comment per 150 lines of diff, hard cap 12.** Signal dies
 with density. A reviewer who sees a comment on every hunk reads none of them. If you're over,

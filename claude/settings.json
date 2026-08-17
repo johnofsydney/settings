@@ -17,6 +17,7 @@
       "Bash(gh pr diff:*)",
       "Bash(gh pr checks:*)",
       "Bash(gh pr status:*)",
+    "Bash(scratch-clean:*)",
       "mcp__claude_ai_Slack__slack_search_public_and_private",
       "mcp__claude_ai_Gmail__search_threads",
       "mcp__claude_ai_Google_Drive__search_files",
@@ -150,6 +151,25 @@
             "type": "command",
             "command": "if [ -f '/Users/john/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/john/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/john/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/john/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
             "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git *)",
+            "command": "\"$HOME/Projects/John/settings/claude/hooks/temp-marker-guard.sh\"",
+            "timeout": 15,
+            "statusMessage": "Checking for TEMP-marked files"
+          },
+          {
+            "type": "command",
+            "if": "Bash(gh *)",
+            "command": "\"$HOME/Projects/John/settings/claude/hooks/temp-marker-guard.sh\"",
+            "timeout": 15,
+            "statusMessage": "Checking for TEMP-marked files"
           }
         ]
       }
