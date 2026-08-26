@@ -13,7 +13,7 @@ Shared Claude Code configuration, symlinked into `~/.claude/` on every machine.
 |---|---|---|
 | `CLAUDE.md` | `~/.claude/CLAUDE.md` | Yes — global instructions, every session |
 | `settings.json` | `~/.claude/settings.json` | Yes — permissions, hooks, statusLine, plugins, theme |
-| `skills/*` | `~/.claude/skills/<name>` | Yes — one symlink per skill |
+| — | `~/.claude/skills/` | **No — skills are local to the machine that wrote them** |
 | `context-work.md`<br>`context-home.md` | `~/.claude/machine.md` | **Profile picks one** |
 | `overlay-work.json`<br>`overlay-home.json` | `~/.claude/overlay.json` | **Profile picks one** |
 
@@ -21,6 +21,16 @@ Shared Claude Code configuration, symlinked into `~/.claude/` on every machine.
 > team and project names — same rule as `work_aliases.sh`. It won't be in a fresh clone;
 > `setup_006` creates an empty one so the `@~/.claude/machine.md` import never dangles.
 > Nothing is lost for syncing, because the home machine reads `context-home.md` anyway.
+
+> **Skills are not in this repo, for the same reason.** A skill spells out the internal
+> workflow it automates — repo names, hostnames, ticket conventions, the shape of a
+> team's board — so it falls under the `context-work.md` rule rather than the
+> `CLAUDE.md` one. They live only in `~/.claude/skills/` on the machine that wrote them.
+> `setup_006` creates that directory and touches nothing inside it.
+>
+> **The cost, stated plainly: a fresh machine gets no skills, and a lost laptop loses
+> them.** That is the accepted trade for now. Revisiting it means a *private* repo, not
+> this one.
 
 `CLAUDE.md` ends with `@~/.claude/machine.md`. That's a Claude Code import — it inlines
 whichever context file the profile symlink points at. So the instructions are one shared
@@ -109,9 +119,11 @@ Two things to watch for in that diff:
 ## Verifying it worked
 
 ```sh
-# 1. All five links point into the settings repo
+# 1. All four links point into the settings repo
 ls -la ~/.claude/{CLAUDE.md,settings.json,machine.md,overlay.json}
-ls -la ~/.claude/skills/
+
+# ...and nothing under skills/ does. Every entry should be a real directory.
+find ~/.claude/skills -maxdepth 1 -type l
 
 # 2. Permissions survived the move (should match what's committed)
 python3 -c "import json;p=json.load(open('$HOME/.claude/settings.json'))['permissions'];\
@@ -154,10 +166,11 @@ claude -p "reply with just: ok"
 - **Connectors (Figma, Linear, Slack, Gmail…) are account-scoped**, not file config. They
   travel with the claude.ai account, so they can't be synced from here — and equally can't
   leak between machines signed into different accounts. Audit them per account.
-- **Skills are linked one by one, not as a directory.** `claude plugin init <name>`
-  scaffolds into `~/.claude/skills/<name>/`; if the whole directory were a link, every new
-  skill would be forced into this repo. To share a new skill, move it into `claude/skills/`
-  and re-run `setup_006`.
+- **Never move a skill into this repo.** `claude plugin init <name>` scaffolds into
+  `~/.claude/skills/<name>/`, and that is where a skill stays. This repo is public, and a
+  skill is a written description of an internal workflow — the `context-work.md` rule, not
+  the `CLAUDE.md` one. `setup_006` creates `~/.claude/skills/` and does nothing else to it,
+  so a skill written here is never copied, linked or published anywhere.
 
 ## Worktrees
 

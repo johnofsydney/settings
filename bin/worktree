@@ -46,8 +46,11 @@
 #   WORKTREE_RUN_CMD           command to start the dev stack      (default: bin/dev)
 #   WORKTREE_BASE_BRANCH       branch new work forks from          (default: auto-detected)
 #
-# Base-branch resolution (when not passed as an arg): WORKTREE_BASE_BRANCH,
-# else origin's default branch (origin/HEAD), else main/master.
+# Base-branch resolution (when not passed as an arg): WORKTREE_BASE_BRANCH, else origin's
+# default branch as a REMOTE-tracking ref (origin/main), else local main/master. Resolving
+# to origin/main rather than main is what stops a worktree inheriting a stale local trunk:
+# `new` fetches first, and that moves origin/main only. A base passed as an argument is
+# taken literally, so `worktree new foo 5000 main` still branches from local main.
 #
 # Usage:
 #   worktree new <name> [port] [base-branch]   # create + set up   (base-branch default: auto-detected)
@@ -435,7 +438,9 @@ branch_exists() {
 resolve_base() {
   if [ -n "${WORKTREE_BASE_BRANCH:-}" ]; then echo "$WORKTREE_BASE_BRANCH"; return 0; fi
   local head
-  head="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')"
+  # The remote-tracking ref, not the bare branch name: `new` fetches immediately before
+  # calling this, and a fetch moves origin/main while leaving a local main days behind.
+  head="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)"
   [ -n "$head" ] && { echo "$head"; return 0; }
   for b in main master; do branch_exists "$b" && { echo "$b"; return 0; }; done
   # A repo whose trunk is `develop` reaches here with no main and no master. Falling back
@@ -480,7 +485,7 @@ pin_dirs() {
 # PER CANDIDATE PORT" (hundreds of processes when the low end of the range is busy) to
 # a single pass. The listener half is therefore a SNAPSHOT — call pins_reset before
 # re-checking a port whose freshness matters, which is what closes the TOCTOU window
-# around `new`'s confirmation prompt.
+# in `new` between choosing a port and pinning it.
 PIN_LIST=$'\n'
 PINS_LOADED=0
 
@@ -741,33 +746,24 @@ cmd_new() {
   [ -f "$MAIN/Gemfile" ]      && echo "    - bundle install into vendor/bundle (gems isolated from the shared gem home)"
   [ -x "$MAIN/bin/rails" ]    && echo "    - bin/rails db:prepare (creates dbs $db + $test_db)"
   echo ""
-  read -r -p "Proceed? [y/N] " reply || reply=""
-  case "$reply" in
-    [yY] | [yY][eE][sS]) ;;
-    *) echo "Aborted."; exit 1 ;;
-  esac
-
-  # Close the check-to-use gap (TOCTOU). The port was chosen well above so it could
-  # be shown in the summary — but nothing RESERVED it, and the prompt you just
-  # answered can sit open indefinitely. A second `worktree new` in another tab (or
-  # this one, left waiting while you set up another) can claim the same number in
-  # between: both checked "free", both were right at the time, both then pin it.
-  # Re-checking here shrinks the window from "however long you took to answer y"
-  # down to the second or so before .env is written.
+  # Close the check-to-use gap (TOCTOU). Nothing RESERVES the port chosen above, and
+  # the origin fetch between there and here can take seconds — long enough for a
+  # second `worktree new` in another tab to check the same number, agree it is free,
+  # and pin it. Both were right at the time; both then pin it.
   #
-  # pins_reset is what makes that re-check mean anything: the pin + listener scan is
+  # pins_reset is what makes the re-check mean anything: the pin + listener scan is
   # cached after its first use (see load_pins), so without dropping the cache this
-  # would just re-read the same snapshot taken before the prompt and always agree.
+  # re-reads the same snapshot and always agrees.
   pins_reset
   if ! port_free "$port"; then
     if [ "$port_src" = "explicit" ]; then
-      echo "⚠ port $port was claimed while you were confirming — pinning it anyway," >&2
+      echo "⚠ port $port was claimed during setup — pinning it anyway," >&2
       echo "  since you asked for it by name. Expect a clash." >&2
     else
       local stolen="$port"
       port="$(pick_port)"
-      port_src="re-picked ($stolen was claimed while you were confirming)"
-      echo "▶ port reassigned: $stolen → $port  ($stolen went to something else mid-prompt)"
+      port_src="re-picked ($stolen was claimed during setup)"
+      echo "▶ port reassigned: $stolen → $port  ($stolen went to something else during setup)"
     fi
   fi
   if ! port_free "$vite_port"; then
@@ -793,7 +789,9 @@ cmd_new() {
   else
     # Brand new branch off the base.
     echo "▶ creating new branch from $base"
-    git worktree add -b "$name" "$dir" "$base"
+    # --no-track: branch.autoSetupMerge defaults to setting an upstream when the start
+    # point is a remote-tracking ref, which would make `git pull` here pull main.
+    git worktree add --no-track -b "$name" "$dir" "$base"
   fi
 
   # From here on the worktree EXISTS, so a failure in any step below leaves something
@@ -1202,6 +1200,7 @@ branch_base_ref() {
   m="$(mainline_ref || true)"
   if [ -n "$m" ]; then echo "$m"; return 0; fi
   b="$(resolve_base || true)"
+  b="${b#origin/}"
   if [ -n "$b" ]; then
     git rev-parse --verify --quiet "origin/$b" >/dev/null 2>&1 && { echo "origin/$b"; return 0; }
     git rev-parse --verify --quiet "$b"        >/dev/null 2>&1 && { echo "$b";        return 0; }
@@ -1397,7 +1396,7 @@ COMMANDS
       is seeded from the main checkout's .env when there is one — it's normally
       gitignored, so git can't bring it across — with those four keys overridden
       and every other key carried over.
-      Prompts before doing anything. If
+      Prints its plan, then runs it — there is no confirmation prompt. If
       <name> already exists (locally or on origin) it's checked out; otherwise
       it's created from [base-branch].
         port         optional; defaults to the ticket number in <name> (PROJ-1989
@@ -1407,7 +1406,9 @@ COMMANDS
                      Pins are read from every worktree of this repo AND every
                      sibling dir of the main checkout, so other projects count,
                      and PORT + VITE_RUBY_PORT share one number space.
-        base-branch  optional; defaults to origin's default branch, else main/master
+        base-branch  optional; defaults to origin's default branch as a remote-tracking
+                     ref (origin/main) so a stale local main is never inherited, else
+                     local main/master. Pass `main` explicitly to branch from local main.
       e.g.  worktree new PROJ-123-fix-header
             worktree new PROJ-123-fix-header 5000
             worktree new hotfix 5000 main
