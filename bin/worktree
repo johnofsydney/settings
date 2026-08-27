@@ -635,6 +635,24 @@ write_env() {   # dir port vite_port db test_db
   return 0
 }
 
+# config/master.key is the same shape of problem as .env: Rails gitignores it by
+# convention, so `git worktree add` never carries it across, and every worktree started
+# with no way to decrypt config/credentials.yml.enc — Rails.application.credentials
+# either raises ActiveSupport::MessageEncryptor::InvalidMessage on boot (if some other
+# master.key is already sitting there, e.g. reused from a stale worktree) or silently
+# returns nil for every credential (if the file is simply missing), either of which is
+# a confusing failure far from this cause. Only copy from the main checkout — never
+# generate one — since master.key must match whatever credentials.yml.enc was actually
+# encrypted with.
+write_master_key() {   # dir
+  local dir="$1"
+  [ -f "$dir/config/master.key" ] && return 0
+  [ -f "$MAIN/config/master.key" ] || return 0
+
+  cp "$MAIN/config/master.key" "$dir/config/master.key"
+  echo "▶ master.key: copied from the main checkout"
+}
+
 # 0 when <dir> exists and holds nothing besides <allowed> — used to decide whether
 # git's collapsed "?? vendor/" entry is purely our own artifact or is hiding real work.
 dir_holds_only() {   # dir allowed_name
@@ -801,6 +819,7 @@ cmd_new() {
   WT_CREATED_DIR="$dir"; WT_CREATED_NAME="$name"
 
   write_env "$dir" "$port" "$vite_port" "$db" "$test_db"
+  write_master_key "$dir"
 
   # Before the slow steps, so the worktree is usable by Claude even if a later
   # bundle/db step fails and you fix it by hand.
