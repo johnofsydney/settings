@@ -2,6 +2,23 @@
 
 These apply in every project, wherever I'm working.
 
+## Code Comments
+
+Write code so it doesn't need comments. A comment earns its place only by stating a constraint the code cannot show — a security invariant, a non-obvious external behaviour, a required ordering. These rules apply to ALL code you write or modify, and they OVERRIDE "match the surrounding comment style": a heavily-commented file is not a licence to add more.
+
+- **The test.** Delete the comment. If nothing is lost that a reader can't get from the code, the tests, or `git log`, leave it deleted.
+- **Present tense only.** Describe the code as it is — never how it was ("previously", "used to"), how it got here ("probing showed", "a review found"), or how it will be ("will be replaced", "for now"). Corrections and history go in the commit message.
+- **No ticket or issue references** in source comments (JIRA/Linear/GitHub IDs). Docs and commit messages may reference tickets; code never.
+- **No TODOs or FIXMEs.** Unfinished work goes in the PR description or the tracker, where someone will actually see it.
+- **Circumspect in the extreme.** 1–3 lines maximum. No rationale essays, no restating what the next lines do, no narrating alternatives you rejected.
+- **Never comment out code.** Delete it; git has it.
+- **Keep comments true.** If your change makes an existing comment wrong, fix or delet it in the same change. Otherwise leave existing comments alone — no drive-by sweeps of unrelated ones.
+
+Not covered by the above, because they are documentation rather than commentary: docstrings and module or class headers stating what a thing is for and what its contract is; public API docs; licence headers, generated-code markers, and tooling directives (`eslint-disable`, `rubocop:disable`, `ts-expect-error`, `# type: ignore`) — those still carry the one-line reason the tool requires.
+
+Good: `// Stripe returns 200 with an error body; status alone is not success.`
+Bad:  `// Increment the retry counter`
+
 ## Reviewing my own PRs
 
 **Review in a session that didn't write the code. Annotate in the session that did.**
