@@ -54,6 +54,7 @@
 #
 # Usage:
 #   worktree new <name> [port] [base-branch]   # create + set up   (base-branch default: auto-detected)
+#   worktree new                               # same, on a generated two-word name
 #   worktree ls                                # list worktrees (table: branch/port/db)
 #   worktree rm [<name>|-i]                    # remove a worktree (menu if no name) + branch + drop db,
 #                                              #   then asks separately about deleting origin/<branch>,
@@ -158,6 +159,52 @@ else
 fi
 
 slugify() { echo "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g'; }
+
+# Two unconnected words — "wuthering-butterfly" — for a worktree whose OWN name does
+# not matter, because the branch it ends up on will be named by something else: a
+# ticket tool run inside it switches to the branch the tracker wants, and the script
+# already tolerates that drift (resolve_worktree matches the directory too, rm reads
+# the db names from the worktree's .env). Deliberately digit-free, so
+# port_from_ticket cannot read a ticket number out of a name that has none.
+WORD_ADJECTIVES=(
+  wuthering fallen gigantic velvet brazen hollow gilded restless amber crooked
+  silent marbled feral tangled lucid sullen bristling opal drifting luminous
+  jagged plush wistful rusted vaulting candid glassy murmuring obstinate saffron
+  tidal unruly verdant wandering brindled cobalt dappled errant fervent gossamer
+  halcyon indigo jubilant kindred lofty mottled nimble ochre
+)
+WORD_NOUNS=(
+  butterfly rainbow possum lantern harbour thistle magpie quarry otter ledger
+  comet badger orchard pelican anvil cypress falcon gully heron juniper
+  kestrel lichen mackerel narwhal obelisk puffin quoll raven starling tumbleweed
+  urchin wombat yarrow zephyr bramble cistern estuary grotto lagoon meadow
+  nimbus plateau ravine sandbar tundra wharf glacier reef
+)
+
+# 0 when a name is already spoken for. Checks more than git does: a local branch, an
+# origin branch, an existing worktree, AND a sibling directory git no longer tracks —
+# the last because cmd_new would otherwise pick a name whose directory is still on
+# disk from an orphaned worktree, and `git worktree add` fails on a non-empty path.
+name_taken() {   # name -> 0 if taken
+  local name="$1" slug; slug="$(slugify "$name")"
+  if git show-ref --verify --quiet "refs/heads/$name"; then return 0; fi
+  if git show-ref --verify --quiet "refs/remotes/origin/$name"; then return 0; fi
+  if [ -e "$PARENT/${REPO_NAME}-$slug" ]; then return 0; fi
+  if resolve_worktree "$name" >/dev/null 2>&1; then return 0; fi
+  return 1
+}
+
+random_name() {   # -> "<adjective>-<noun>", not taken by anything above
+  local i adj noun name
+  for i in $(seq 1 80); do
+    adj="${WORD_ADJECTIVES[RANDOM % ${#WORD_ADJECTIVES[@]}]}"
+    noun="${WORD_NOUNS[RANDOM % ${#WORD_NOUNS[@]}]}"
+    name="$adj-$noun"
+    if ! name_taken "$name"; then printf '%s\n' "$name"; return 0; fi
+  done
+  echo "ERROR: 80 generated names were all taken. Pass a name explicitly." >&2
+  return 1
+}
 
 # md5 hex digest of stdin. macOS ships `md5`, Linux ships `md5sum` — the digest is the
 # same either way, so a db-name suffix or overmind socket path computed on one is
@@ -668,7 +715,11 @@ dirty_count() {   # dir -> count
 
 cmd_new() {
   require_repo
-  local name="${1:?usage: worktree new <name> [port] [base-branch]}"
+  local name="${1:-}" name_src="given"
+  if [ -z "$name" ]; then
+    name="$(random_name)"
+    name_src="generated"
+  fi
   local slug; slug="$(slugify "$name")"
   local dir="$PARENT/${REPO_NAME}-$slug"
   local stem; stem="$(db_stem_for "$slug")"
@@ -722,7 +773,11 @@ cmd_new() {
   local base="${3:-$(resolve_base)}"
 
   echo "▶ worktree : $dir"
-  echo "▶ branch   : $name (from $base)"
+  if [ "$name_src" = "generated" ]; then
+    echo "▶ branch   : $name (from $base)  ${DIM}· two unconnected words, generated${X}"
+  else
+    echo "▶ branch   : $name (from $base)"
+  fi
   echo "▶ database : $db  (via \$$DB_ENV_VAR)"
   echo "▶ test db  : $test_db  (via \$$TEST_DB_ENV_VAR)"
   echo "▶ port     : $port  ($port_src)"
@@ -1388,7 +1443,14 @@ USAGE
   worktree <command> [args]
 
 COMMANDS
-  new <name> [port] [base-branch]
+  new [<name>] [port] [base-branch]
+      With no NAME, one is generated from two unconnected words
+      ("wuthering-butterfly") — for work whose branch will be named later by
+      something else, e.g. a ticket tool run inside the worktree that switches to
+      the branch its tracker wants. The directory, .env and databases keep the
+      generated name; the port is auto-picked (a two-word name carries no ticket
+      number). Positional args being what they are, a port or base-branch needs a
+      NAME as well.
       Create a worktree at ../<repo>-<name> on branch <name>, with its own dev +
       test databases (<repo>_<name>_development and <repo>_<name>_test),
       node_modules, and a
