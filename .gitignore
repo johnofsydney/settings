@@ -10,5 +10,11 @@ env_variables.sh
 # machine reads context-home.md instead. setup_006 creates an empty one if missing.
 claude/context-work.md
 
+# Claude Code writes permission approvals, autoMode-learned project data, theme, and
+# Orca-hook rewrites back into this file constantly — that state is machine-specific
+# and volatile, so it no longer syncs. Each machine keeps its own real file.
+claude/settings.json
+claude/settings.json.bak
+
 .DS_Store
 **/.DS_Store

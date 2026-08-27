@@ -96,7 +96,6 @@ link() {
 echo
 echo "Linking into $CLAUDE_DIR (profile: $PROFILE)"
 link "$CLAUDE_SRC/CLAUDE.md"                "$CLAUDE_DIR/CLAUDE.md"
-link "$CLAUDE_SRC/settings.json"            "$CLAUDE_DIR/settings.json"
 link "$CLAUDE_SRC/context-$PROFILE.md"      "$CLAUDE_DIR/machine.md"
 link "$CLAUDE_SRC/overlay-$PROFILE.json"    "$CLAUDE_DIR/overlay.json"
 
@@ -116,7 +115,8 @@ fi
 
 echo
 echo "Verify with:"
-echo "  ls -la $CLAUDE_DIR/{CLAUDE.md,settings.json,skills,machine.md,overlay.json}"
+echo "  ls -la $CLAUDE_DIR/{CLAUDE.md,skills,machine.md,overlay.json}"
+echo "settings.json is no longer synced — it's a real, machine-local file now."
 echo "Then open a new shell (the claude() wrapper lives in my_extensions.sh) and run"
 echo "/context in a session to confirm the machine.md import resolved."
 
