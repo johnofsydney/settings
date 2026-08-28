@@ -1152,17 +1152,18 @@ resolve_worktree() {   # query -> "<dir>\t<branch>"
 # below. Anything else is reported and left exactly where it is — this never becomes a
 # blind `rm -rf` of a directory whose contents were not checked first.
 SWEEPABLE=(tmp log .overmind.sock .DS_Store)
+SWEEP_LEFTOVER=""   # set to the path when a directory survives, so the summary can't overclaim
 sweep_removed_dir() {   # dir
   local dir="$1" entry name sw keep leftovers=()
   [ -d "$dir" ] || return 0
 
   if [ "$(dirname "$dir")" != "$PARENT" ] || [ -e "$dir/.git" ]; then
-    echo "  ${Y}! $dir is still on disk — remove it yourself${X}"
+    SWEEP_LEFTOVER="$dir"; echo "  ${Y}! $dir is still on disk — remove it yourself${X}"
     return 0
   fi
   case "$(basename "$dir")" in
     "${REPO_NAME}"-*) ;;
-    *) echo "  ${Y}! $dir is still on disk — remove it yourself${X}"; return 0 ;;
+    *) SWEEP_LEFTOVER="$dir"; echo "  ${Y}! $dir is still on disk — remove it yourself${X}"; return 0 ;;
   esac
 
   shopt -s nullglob dotglob
@@ -1177,17 +1178,26 @@ sweep_removed_dir() {   # dir
   shopt -u nullglob dotglob
 
   if [ "${#leftovers[@]}" -gt 0 ]; then
+    SWEEP_LEFTOVER="$dir"
     echo "  ${Y}! $dir survived the removal and still holds: ${leftovers[*]}${X}"
     echo "  ${Y}  left alone — remove it yourself once you have looked at it${X}"
     return 0
   fi
 
-  for entry in "${SWEEPABLE[@]}"; do rm -rf "${dir:?}/$entry"; done
-  if rmdir "$dir" 2>/dev/null; then
-    echo "  ${DIM}swept the directory a shutting-down process left behind${X}"
-  else
-    echo "  ${Y}! $dir could not be removed — remove it yourself${X}"
-  fi
+  # A process still writing can beat one pass exactly as it beat git's, so try a few
+  # times over a couple of seconds rather than hand back a directory that would have
+  # cleared itself a moment later.
+  local attempt
+  for attempt in 1 2 3; do
+    for entry in "${SWEEPABLE[@]}"; do rm -rf "${dir:?}/$entry" 2>/dev/null || true; done
+    if rmdir "$dir" 2>/dev/null; then
+      echo "  ${DIM}swept the directory a shutting-down process left behind${X}"
+      return 0
+    fi
+    sleep 1
+  done
+  SWEEP_LEFTOVER="$dir"
+  echo "  ${Y}! $dir could not be removed — remove it yourself${X}"
 }
 
 # Tear down one already-resolved worktree: confirm, stop its stack, drop its dev+test
@@ -1195,6 +1205,7 @@ sweep_removed_dir() {   # dir
 # delete its branch, and report ONLY what actually happened. Returns 1 if declined.
 remove_worktree() {   # dir branch
   local dir="$1" branch="$2"
+  SWEEP_LEFTOVER=""   # `rm -i` removes several in one run; each reports only its own
 
   # Stand in the MAIN checkout for the whole teardown. `git worktree remove` will
   # happily delete the directory you are standing in, and every git call after that
@@ -1270,12 +1281,21 @@ remove_worktree() {   # dir branch
   # the delete doing the right thing near live files. See claude_unseed.
   claude_unseed "$dir"
   echo "▶ removing worktree..."
-  git worktree remove "$dir" --force
+  # git deregisters the worktree BEFORE deleting its files, and gives up — non-zero — on
+  # the first path it cannot delete. Uncaught, that failure takes set -e out of the rest
+  # of the teardown: branch still present, half-deleted directory on disk, and nothing
+  # said about either. The sweep decides what happens to what is left.
+  git worktree remove "$dir" --force || echo "  ${Y}! git could not finish deleting the directory${X}"
   sweep_removed_dir "$dir"
   if [ -n "$branch" ]; then
     git branch -D "$branch" 2>/dev/null || echo "  (couldn't delete branch '$branch' - delete it manually)"
   fi
-  echo "${G}✅ removed worktree${X}${branch:+, branch '$branch',} and dbs ($db, $test_db)"
+  if [ -n "$SWEEP_LEFTOVER" ]; then
+    echo "${Y}✔ deregistered the worktree${X}${branch:+, deleted branch '$branch',} and dropped its dbs ($db, $test_db)"
+    echo "${Y}  — but $SWEEP_LEFTOVER is still on disk, and the name stays unusable until it goes.${X}"
+  else
+    echo "${G}✅ removed worktree${X}${branch:+, branch '$branch',} and dbs ($db, $test_db)"
+  fi
   # Log + print a one-paste restore for the branch ref (its commits survive in the
   # object store until git gc, so this recreates the branch pointing at the same tip).
   if [ -n "$branch" ] && [ -n "$ASSESS_SHA" ]; then
