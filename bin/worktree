@@ -1139,6 +1139,57 @@ resolve_worktree() {   # query -> "<dir>\t<branch>"
   return 1
 }
 
+# Sweep the shell `git worktree remove` can leave behind.
+#
+# The removal deletes the tree entry by entry, and a process still shutting down —
+# bootsnap writing its compile cache as the stack stops — creates a file in a directory
+# git has already walked past. Git warns, returns 0, and leaves a <repo>-<slug>
+# directory holding nothing but tmp/. That shell makes the name unusable: `git worktree
+# add` refuses a non-empty path, and name_taken counts a sibling directory as taken.
+#
+# Safety: only a direct child of the main checkout's parent, named <repo>-*, already
+# deregistered by git (no .git entry), and holding nothing but the regenerable paths
+# below. Anything else is reported and left exactly where it is — this never becomes a
+# blind `rm -rf` of a directory whose contents were not checked first.
+SWEEPABLE=(tmp log .overmind.sock .DS_Store)
+sweep_removed_dir() {   # dir
+  local dir="$1" entry name sw keep leftovers=()
+  [ -d "$dir" ] || return 0
+
+  if [ "$(dirname "$dir")" != "$PARENT" ] || [ -e "$dir/.git" ]; then
+    echo "  ${Y}! $dir is still on disk — remove it yourself${X}"
+    return 0
+  fi
+  case "$(basename "$dir")" in
+    "${REPO_NAME}"-*) ;;
+    *) echo "  ${Y}! $dir is still on disk — remove it yourself${X}"; return 0 ;;
+  esac
+
+  shopt -s nullglob dotglob
+  for entry in "$dir"/*; do
+    name="$(basename "$entry")"
+    keep=1
+    for sw in "${SWEEPABLE[@]}"; do
+      if [ "$name" = "$sw" ]; then keep=0; break; fi
+    done
+    if [ "$keep" = 1 ]; then leftovers+=("$name"); fi
+  done
+  shopt -u nullglob dotglob
+
+  if [ "${#leftovers[@]}" -gt 0 ]; then
+    echo "  ${Y}! $dir survived the removal and still holds: ${leftovers[*]}${X}"
+    echo "  ${Y}  left alone — remove it yourself once you have looked at it${X}"
+    return 0
+  fi
+
+  for entry in "${SWEEPABLE[@]}"; do rm -rf "${dir:?}/$entry"; done
+  if rmdir "$dir" 2>/dev/null; then
+    echo "  ${DIM}swept the directory a shutting-down process left behind${X}"
+  else
+    echo "  ${Y}! $dir could not be removed — remove it yourself${X}"
+  fi
+}
+
 # Tear down one already-resolved worktree: confirm, stop its stack, drop its dev+test
 # dbs (names read from the worktree's own .env — authoritative), remove the worktree,
 # delete its branch, and report ONLY what actually happened. Returns 1 if declined.
@@ -1220,6 +1271,7 @@ remove_worktree() {   # dir branch
   claude_unseed "$dir"
   echo "▶ removing worktree..."
   git worktree remove "$dir" --force
+  sweep_removed_dir "$dir"
   if [ -n "$branch" ]; then
     git branch -D "$branch" 2>/dev/null || echo "  (couldn't delete branch '$branch' - delete it manually)"
   fi

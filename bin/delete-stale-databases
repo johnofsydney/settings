@@ -1,0 +1,253 @@
+#!/usr/bin/env bash
+#
+# delete-stale-databases — drop the local databases nothing is using any more.
+#
+# The companion to `orphans`, which finds them. This script classifies NOTHING
+# itself: it reads `orphans --porcelain` and drops what that names, so there is one
+# definition of "in use" and no way for the two commands to disagree about it.
+#
+# A dropped database cannot be restored, and nothing here dumps one first — these are
+# development and test databases, rebuilt by `bin/rails db:prepare`,
+# `bin/rails parallel:prepare` or `worktree new`. What IS kept is a log: every drop is
+# written to .git/dropped-databases.log with its size and the command that rebuilds it.
+#
+# Databases are dropped a FAMILY at a time — the dev/test pair of one checkout, or one
+# checkout's parallel_tests workers — because that is the unit that becomes rubbish
+# together. Two rules are absolute:
+#
+#   - a database a live worktree or checkout names is never a candidate (the one
+#     exception is --cold-workers, below)
+#   - a database with an open connection is never dropped, in any mode
+#
+# Usage:
+#   delete-stale-databases                 # dry-run: show what would go, drop nothing
+#   delete-stale-databases --unclaimed     # drop every family nothing claims (one confirm)
+#   delete-stale-databases -i              # decide family by family
+#   delete-stale-databases -h
+#
+# Flags:
+#   --cold-workers   also offer the parallel_tests workers of a LIVE checkout when they
+#                    have not been written to in --days. The next parallel run recreates
+#                    them; the checkout's own dev/test pair is never offered.
+#   --days N         age at which a database counts as cold (default: 14)
+#   -y, --yes        skip the confirmations (not the open-connection refusal)
+#
+set -euo pipefail
+
+MODE="dryrun"          # dryrun | unclaimed | interactive
+DAYS=14
+COLD_WORKERS=0
+ASSUME_YES=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --unclaimed)        MODE="unclaimed" ;;
+    -i | --interactive) MODE="interactive" ;;
+    --cold-workers)     COLD_WORKERS=1 ;;
+    --days)             DAYS="${2:-}"; shift ;;
+    --days=*)           DAYS="${1#*=}" ;;
+    -y | --yes)         ASSUME_YES=1 ;;
+    -h | --help)        sed -n '3,33p' "$0"; exit 0 ;;
+    *) echo "unknown option: $1 (try -h)" >&2; exit 2 ;;
+  esac
+  shift
+done
+[[ "$DAYS" =~ ^[0-9]+$ ]] || { echo "--days needs a number" >&2; exit 2; }
+
+if [ -t 1 ]; then
+  BOLD=$'\033[1m'; DIM=$'\033[2m'; G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[31m'; X=$'\033[0m'
+else
+  BOLD=""; DIM=""; G=""; Y=""; R=""; X=""
+fi
+
+command -v dropdb >/dev/null 2>&1 || { echo "dropdb not on PATH." >&2; exit 1; }
+GIT_COMMON_DIR="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+[ -n "$GIT_COMMON_DIR" ] || { echo "Not a git repository. Run this from inside the repo whose databases you want dropped." >&2; exit 1; }
+LOG="$GIT_COMMON_DIR/dropped-databases.log"
+
+# Ships alongside this script; prefer that copy over whatever else is on PATH, so an
+# older `orphans` earlier in PATH cannot feed this one a different idea of "in use".
+ORPHANS="$(cd "$(dirname "$0")" && pwd)/orphans"
+[ -x "$ORPHANS" ] || ORPHANS="$(command -v orphans || true)"
+[ -n "$ORPHANS" ] || { echo "orphans not found — it is what decides which databases are unused." >&2; exit 1; }
+
+NOW="$(date +%s)"
+days_since() { echo $(( (NOW - ${1:-0}) / 86400 )); }
+fmt_date() { date -r "$1" '+%Y-%m-%d' 2>/dev/null || date -d "@$1" '+%Y-%m-%d'; }
+TODAY="$(fmt_date "$NOW")"; YESTERDAY="$(fmt_date $((NOW - 86400)))"
+age_phrase() {
+  [ "${1:-0}" -gt 0 ] || { echo "unknown"; return; }
+  local on; on="$(fmt_date "$1")"
+  case "$on" in
+    "$TODAY")     echo "today" ;;
+    "$YESTERDAY") echo "yesterday" ;;
+    *)            echo "$(days_since "$1") days ago ($on)" ;;
+  esac
+}
+human_kb() { awk -v k="$1" 'BEGIN{ if (k>=1048576) printf "%.1f GB", k/1048576; else if (k>=1024) printf "%.0f MB", k/1024; else printf "%d KB", k }'; }
+confirm() {
+  [ "$ASSUME_YES" = 1 ] && return 0
+  local ans; read -r ans <&3 || ans=""
+  case "$ans" in [yY] | [yY][eE][sS]) return 0 ;; *) return 1 ;; esac
+}
+
+# ---- gather families from `orphans --porcelain` ----------------------------
+declare -a F_LABEL F_KIND F_NAMES F_COUNT F_KB F_TOUCHED F_CONNS F_INUSE
+# Echoes nothing and still returns 0 when the family is new: every caller assigns it
+# bare, and a non-zero status there would take the whole script out under set -e.
+find_family() {
+  local i
+  for i in "${!F_LABEL[@]}"; do [ "${F_LABEL[$i]}" = "$1" ] && { echo "$i"; return 0; }; done
+  return 0
+}
+
+while IFS=$'\t' read -r name label kind kb touched conns inuse; do
+  [ -n "${name:-}" ] || continue
+  i="$(find_family "$label")"
+  if [ -z "$i" ]; then
+    F_LABEL+=("$label"); F_KIND+=("$kind"); F_NAMES+=("$name"); F_COUNT+=(1)
+    F_KB+=("$kb"); F_TOUCHED+=("$touched"); F_CONNS+=("$conns"); F_INUSE+=("$inuse")
+  else
+    F_NAMES[$i]="${F_NAMES[$i]} $name"
+    F_COUNT[$i]=$(( F_COUNT[i] + 1 ))
+    F_KB[$i]=$(( F_KB[i] + kb ))
+    [ "$touched" -gt "${F_TOUCHED[$i]}" ] && F_TOUCHED[$i]="$touched"
+    F_CONNS[$i]=$(( F_CONNS[i] + conns ))
+    if [ "$inuse" = 1 ]; then F_INUSE[$i]=1; fi
+  fi
+done < <("$ORPHANS" --porcelain)
+
+# ---- pick the candidates ---------------------------------------------------
+# "unclaimed": nothing names it. "cold-workers": a live checkout's parallel_tests
+# workers, cold for --days, offered only when asked for by flag.
+declare -a C_IDX C_CLASS
+skipped_warm_workers=0
+for i in "${!F_LABEL[@]}"; do
+  if [ "${F_INUSE[$i]}" != 1 ]; then
+    C_IDX+=("$i"); C_CLASS+=("unclaimed")
+  elif [ "${F_KIND[$i]}" = "workers" ]; then
+    if [ "$(days_since "${F_TOUCHED[$i]}")" -lt "$DAYS" ]; then continue; fi
+    if [ "$COLD_WORKERS" = 1 ]; then C_IDX+=("$i"); C_CLASS+=("cold-workers")
+    else skipped_warm_workers=$((skipped_warm_workers + 1)); fi
+  fi
+done
+
+if [ "${#C_IDX[@]}" -eq 0 ]; then
+  echo
+  echo "Nothing to drop — every database here belongs to a live worktree or checkout."
+  [ "$skipped_warm_workers" -gt 0 ] &&
+    echo "${DIM}(${skipped_warm_workers} cold parallel_tests worker group(s) exist — offer them with --cold-workers)${X}"
+  echo
+  exit 0
+fi
+
+# ---- the table -------------------------------------------------------------
+echo
+printf "%sDatabases that can go in %s%s\n\n" "$BOLD" "$(basename "$(dirname "$GIT_COMMON_DIR")")" "$X"
+total_kb=0; blocked=0
+order="$(for n in "${!C_IDX[@]}"; do echo "${F_TOUCHED[${C_IDX[$n]}]} $n"; done | sort -n | awk '{print $2}')"
+for n in $order; do
+  i="${C_IDX[$n]}"
+  if   [ "${F_CONNS[$i]}" -gt 0 ];                            then col=$R; dot="▲"; blocked=$((blocked + 1)); note=" — ${F_CONNS[$i]} open connection(s), will not be dropped"
+  elif [ "$(days_since "${F_TOUCHED[$i]}")" -lt "$DAYS" ];     then col=$Y; dot="●"; note=""; total_kb=$(( total_kb + F_KB[i] ))
+  else                                                             col=$G; dot="●"; note=""; total_kb=$(( total_kb + F_KB[i] ))
+  fi
+  printf "${col}%s %-52s${X} ${DIM}%2d db  %8s  last written %s  [%s]%s${X}\n" \
+    "$dot" "${F_LABEL[$i]}" "${F_COUNT[$i]}" "$(human_kb "${F_KB[$i]}")" "$(age_phrase "${F_TOUCHED[$i]}")" "${C_CLASS[$n]}" "$note"
+done
+
+echo
+printf "%s  %s reclaimable · %s written to within %s days (autovacuum writes too — an old date proves disuse, a recent one proves nothing)%s\n" \
+  "$DIM" "$(human_kb "$total_kb")" "${Y}●${X}${DIM}" "$DAYS" "$X"
+[ "$skipped_warm_workers" -gt 0 ] &&
+  printf "%s  %s cold worker group(s) of live checkouts not shown — add --cold-workers%s\n" "$DIM" "$skipped_warm_workers" "$X"
+
+# ---- dropping --------------------------------------------------------------
+[ -e /dev/fd/3 ] || exec 3<&0   # prompts read from the terminal, not from any redirected stdin
+
+log_drop() {   # name kb rebuild
+  printf '%s  %-62s  %8s  rebuild: %s\n' "$(date '+%F %T')" "$1" "$(human_kb "$2")" "$3" >> "$LOG"
+}
+rebuild_cmd() {   # kind -> the command that brings the family back
+  case "$1" in
+    workers) echo "bin/rails parallel:prepare" ;;
+    *)       echo "bin/rails db:prepare" ;;
+  esac
+}
+
+dropped_kb=0; dropped_n=0
+drop_family() {   # index
+  local i="$1" name rebuild kb
+  if [ "${F_CONNS[$i]}" -gt 0 ]; then
+    echo "  ${R}✗ refused${X} ${F_LABEL[$i]} — ${F_CONNS[$i]} open connection(s). Stop what is using it first."
+    return 1
+  fi
+  rebuild="$(rebuild_cmd "${F_KIND[$i]}")"
+  for name in ${F_NAMES[$i]}; do
+    kb="$(psql -tAc "select coalesce(pg_database_size('$name')/1024, 0)" postgres 2>/dev/null || echo 0)"
+    if dropdb "$name" 2>/dev/null; then
+      log_drop "$name" "$kb" "$rebuild"
+      dropped_kb=$(( dropped_kb + kb )); dropped_n=$((dropped_n + 1))
+      echo "  ${G}✓ dropped${X} $name ${DIM}($(human_kb "$kb"))${X}"
+    else
+      echo "  ${R}✗ could not drop${X} $name"
+    fi
+  done
+}
+report_total() {
+  [ "$dropped_n" -gt 0 ] || return 0
+  echo
+  echo "${BOLD}Dropped $dropped_n database(s), $(human_kb "$dropped_kb") back.${X}"
+  echo "${DIM}Logged to $LOG — each line carries the command that rebuilds it, run in the checkout that uses it.${X}"
+}
+
+case "$MODE" in
+  dryrun)
+    echo
+    echo "Dry-run only — nothing dropped. Choose how to proceed:"
+    echo "  ${BOLD}delete-stale-databases --unclaimed${X}   drop every family above in one go, after one confirmation"
+    echo "  ${BOLD}delete-stale-databases -i${X}            decide family by family"
+    echo "${DIM}  A dropped database is not recoverable. Nothing is dumped first — see -h.${X}"
+    echo
+    ;;
+
+  unclaimed)
+    droppable=()
+    for n in $order; do [ "${F_CONNS[${C_IDX[$n]}]}" -eq 0 ] && droppable+=("${C_IDX[$n]}"); done
+    if [ "${#droppable[@]}" -eq 0 ]; then echo; echo "Everything listed has an open connection. Nothing to do."; echo; exit 0; fi
+    echo
+    echo "${BOLD}About to drop ${#droppable[@]} family(ies), $(human_kb "$total_kb").${X} This cannot be undone."
+    [ "$blocked" -gt 0 ] && echo "${DIM}($blocked family(ies) skipped — open connections.)${X}"
+    printf "Proceed? [y/N] "
+    if confirm; then
+      echo
+      for i in "${droppable[@]}"; do drop_family "$i" || true; done
+      report_total
+    else
+      echo "Aborted."
+    fi
+    echo
+    ;;
+
+  interactive)
+    echo
+    echo "Interactive — for each family: [d]rop  [s]kip  [q]uit."
+    for n in $order; do
+      i="${C_IDX[$n]}"
+      echo
+      echo "  ${BOLD}${F_LABEL[$i]}${X}  ${DIM}${F_COUNT[$i]} db, $(human_kb "${F_KB[$i]}"), last written $(age_phrase "${F_TOUCHED[$i]}")${X}"
+      if [ "${F_CONNS[$i]}" -gt 0 ]; then
+        echo "  ${R}skipped — ${F_CONNS[$i]} open connection(s).${X}"
+        continue
+      fi
+      printf "  [d]rop / [s]kip / [q]uit: "
+      ans=""; read -r ans <&3 || ans=""
+      case "$ans" in
+        d | D) drop_family "$i" || true ;;
+        q | Q) break ;;
+        *)     echo "  skipped." ;;
+      esac
+    done
+    report_total
+    echo
+    ;;
+esac
