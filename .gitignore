@@ -5,6 +5,14 @@ env_variables.sh
 # Not to be confused with claude/, which IS the shared config (see claude/README.md).
 .claude/settings.local.json
 
+# Each machine owns its own Claude Code settings — permissions, plugins and hooks
+# accumulate per machine, and syncing them put every approval on both laptops. The real
+# file is ~/.claude/settings.json; nothing here mirrors it. Same rule for a skill's
+# helper scripts and its hooks, which live in ~/.claude/bin and ~/.claude/hooks.
+claude/settings.json
+claude/settings.json.bak
+claude/bin/
+
 # Work-machine Claude context: internal team/project names, so it stays out of this
 # PUBLIC repo — same rule as work_aliases.sh. Costs nothing to sync, since the home
 # machine reads context-home.md instead. setup_006 creates an empty one if missing.

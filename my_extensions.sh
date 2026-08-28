@@ -137,12 +137,12 @@ wt() { local d; d="$(worktree print_path "$@")" && cd "$d"; }
 
 # Claude Code: layer this machine's model/effort over the shared base config.
 #
-# ~/.claude/settings.json is a symlink to claude/settings.json in this repo — shared
-# by every machine (permissions, hooks, statusLine, plugins). ~/.claude/overlay.json is
-# a symlink to claude/overlay-work.json OR claude/overlay-home.json; that symlink IS the
-# per-machine choice, which is why this wrapper is identical everywhere and can be
-# committed. --settings loads as `flagSettings`, which outranks `userSettings`, so the
-# overlay wins over the shared base. Both symlinks are made by setup_006.
+# ~/.claude/settings.json is a real file each machine owns (permissions, hooks,
+# statusLine, plugins). ~/.claude/overlay.json is a symlink to claude/overlay-work.json
+# OR claude/overlay-home.json; that symlink IS the per-machine choice, which is why this
+# wrapper is identical everywhere and can be committed. --settings loads as
+# `flagSettings`, which outranks `userSettings`, so the overlay wins over whatever the
+# machine's own settings say. The symlink is made by setup_006.
 #
 # Caveat: this only applies to Claude launched from an interactive shell. A GUI-launched
 # IDE extension or a cron job bypasses it and gets the shared base — which is why the

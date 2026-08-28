@@ -2,7 +2,7 @@
 #
 # scratch-clean — delete throwaway files inside THIS Claude Code session's scratchpad.
 #
-# Exists because `Bash(rm:*)` is denied outright in claude/settings.json, and that deny is
+# Exists because `Bash(rm:*)` is denied outright in ~/.claude/settings.json, and that deny is
 # absolute: it outranks permission allow rules AND a PreToolUse hook returning "allow"
 # (verified — the hook runs, returns allow, and the call is still refused). So an agent
 # cannot tidy up after itself with rm, and every session leaves its scratch dirs behind.

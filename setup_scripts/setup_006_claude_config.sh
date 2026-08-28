@@ -5,9 +5,10 @@ echo
 # Wires this repo's claude/ directory into ~/.claude/ via symlinks, and picks the
 # machine profile (work or home). See claude/README.md for the full picture.
 #
-# Only three paths in ~/.claude/ are config; the rest of that directory is session
-# state, caches, transcripts and telemetry. We link the individual paths and never
-# the directory itself.
+# Only three paths in ~/.claude/ are linked from here; the rest of that directory is
+# session state, caches, transcripts and telemetry — plus the paths each machine owns
+# outright (settings.json, skills/, bin/, hooks/). We link the individual paths and
+# never the directory itself.
 #
 # Idempotent: re-running relinks the same targets and re-uses the profile already in
 # place. A pre-existing REGULAR file/dir is moved aside to <name>.pre-settings-repo.bak
@@ -96,19 +97,28 @@ link() {
 echo
 echo "Linking into $CLAUDE_DIR (profile: $PROFILE)"
 link "$CLAUDE_SRC/CLAUDE.md"                "$CLAUDE_DIR/CLAUDE.md"
-link "$CLAUDE_SRC/settings.json"            "$CLAUDE_DIR/settings.json"
 link "$CLAUDE_SRC/context-$PROFILE.md"      "$CLAUDE_DIR/machine.md"
 link "$CLAUDE_SRC/overlay-$PROFILE.json"    "$CLAUDE_DIR/overlay.json"
 
-# Skills are deliberately not managed from here. They live only in ~/.claude/skills/ on
-# the machine that wrote them: this repo is public, and a skill spells out the internal
-# workflow it automates — the rule that keeps context-work.md out applies to them too.
-# Nothing is linked, copied or removed; the directory is created and left alone.
-mkdir -p "$CLAUDE_DIR/skills"
+# Skills, their helper scripts and their hooks are deliberately not managed from here.
+# They live only on the machine that wrote them: this repo is public, and a skill spells
+# out the internal workflow it automates — the rule that keeps context-work.md out
+# applies to them too. Nothing is linked, copied or removed; the directories are created
+# and left alone.
+mkdir -p "$CLAUDE_DIR/skills" "$CLAUDE_DIR/bin" "$CLAUDE_DIR/hooks"
+
+# settings.json is NOT linked: each machine owns its own permissions, plugins and hooks.
+# A machine with none yet gets Claude Code's default on first run.
+if [ -L "$CLAUDE_DIR/settings.json" ]; then
+  echo
+  echo "NOTE: $CLAUDE_DIR/settings.json is still a symlink into this repo."
+  echo "      Make it a real local file before the repo copy disappears under it:"
+  echo "        cp -L $CLAUDE_DIR/settings.json /tmp/settings.json && mv /tmp/settings.json $CLAUDE_DIR/settings.json"
+fi
 
 echo
 echo "Verify with:"
-echo "  ls -la $CLAUDE_DIR/{CLAUDE.md,settings.json,machine.md,overlay.json}"
+echo "  ls -la $CLAUDE_DIR/{CLAUDE.md,machine.md,overlay.json,settings.json}"
 echo "Then open a new shell (the claude() wrapper lives in my_extensions.sh) and run"
 echo "/context in a session to confirm the machine.md import resolved."
 
