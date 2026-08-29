@@ -13,7 +13,7 @@ which is deliberately **not** synced (see below).
 | File | Linked to | Shared? |
 |---|---|---|
 | `CLAUDE.md` | `~/.claude/CLAUDE.md` | Yes — global instructions, every session |
-| `settings.json` | `~/.claude/settings.json` | Yes — permissions, hooks, statusLine, plugins, theme |
+| — | `~/.claude/settings.json` | **No — real, machine-local file, not in this repo** |
 | — | `~/.claude/skills/` | **No — skills are local to the machine that wrote them** |
 | `context-work.md`<br>`context-home.md` | `~/.claude/machine.md` | **Profile picks one** |
 | `overlay-work.json`<br>`overlay-home.json` | `~/.claude/overlay.json` | **Profile picks one** |
