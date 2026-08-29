@@ -99,19 +99,11 @@ link "$CLAUDE_SRC/CLAUDE.md"                "$CLAUDE_DIR/CLAUDE.md"
 link "$CLAUDE_SRC/context-$PROFILE.md"      "$CLAUDE_DIR/machine.md"
 link "$CLAUDE_SRC/overlay-$PROFILE.json"    "$CLAUDE_DIR/overlay.json"
 
-# Skills are linked ONE BY ONE into a real ~/.claude/skills directory, rather than
-# symlinking the directory itself. Two reasons:
-#   - `claude plugin init <name>` scaffolds into ~/.claude/skills/<name>/. If the
-#     whole directory were a link, every new skill would be forced into this repo.
-#   - A machine can then keep a local-only skill alongside the shared ones.
-# Anything already in ~/.claude/skills that isn't in the repo is left untouched.
+# Skills are deliberately not managed from here. They live only in ~/.claude/skills/ on
+# the machine that wrote them: this repo is public, and a skill spells out the internal
+# workflow it automates — the rule that keeps context-work.md out applies to them too.
+# Nothing is linked, copied or removed; the directory is created and left alone.
 mkdir -p "$CLAUDE_DIR/skills"
-if [ -d "$CLAUDE_SRC/skills" ]; then
-  for skill in "$CLAUDE_SRC"/skills/*/; do
-    [ -d "$skill" ] || continue
-    link "${skill%/}" "$CLAUDE_DIR/skills/$(basename "$skill")"
-  done
-fi
 
 echo
 echo "Verify with:"

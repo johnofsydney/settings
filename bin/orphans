@@ -1,0 +1,377 @@
+#!/usr/bin/env bash
+#
+# orphans — find the leftovers: databases, worktrees and branches nothing is using.
+#
+# READ-ONLY. It deletes nothing, ever. Each section ends with the command that does
+# the deleting, so this stays the one place you look and the deleters stay separate:
+#
+#   databases   delete-stale-databases     (dropping is not undoable — its own script)
+#   worktrees   worktree rm <name>
+#   branches    delete-finished-branches
+#
+# What counts as a leftover differs per kind, and the difference matters:
+#
+#   Databases are judged by REACHABILITY, not age. A database is in use if a live
+#   worktree's .env names it, or it is the main checkout's default, or it is a
+#   parallel_tests sibling (<db>2 … <db>N) of one of those. Anything else matching
+#   this repo's prefix is a leftover no matter how recently it was written to.
+#   Age is shown as colour, not as the verdict, because autovacuum writes to idle
+#   databases: an OLD date proves disuse, a RECENT one proves nothing.
+#
+#   Worktrees and branches are judged by AGE, since a live worktree looks exactly
+#   like an abandoned one. Also listed: sibling directories git no longer tracks
+#   (an orphaned `worktree rm`), which block the name being reused.
+#
+# Databases of other repos, and non-repo databases (postgres, template*), are
+# counted and never listed — run this from that repo to see them.
+#
+# Usage:
+#   orphans                 # the report, 14-day staleness threshold
+#   orphans --days 30       # ... with a different threshold
+#   orphans --all           # also list what IS in use
+#   orphans --porcelain     # one tab-separated line per database, for scripts
+#   orphans -h
+#
+# Config (override via env):
+#   WORKTREE_DB_ENV_VAR        env var .env pins the dev db in  (default: DEV_DATABASE_NAME)
+#   WORKTREE_TEST_DB_ENV_VAR   env var .env pins the test db in (default: TEST_DATABASE_NAME)
+#   PROTECTED_BRANCHES         pipe-separated regex of branches to never call stale
+#
+set -euo pipefail
+
+DAYS=14
+SHOW_ALL=0
+PORCELAIN=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --days) DAYS="${2:-}"; shift ;;
+    --days=*) DAYS="${1#*=}" ;;
+    -a | --all) SHOW_ALL=1 ;;
+    --porcelain) PORCELAIN=1 ;;
+    -h | --help) sed -n '3,37p' "$0"; exit 0 ;;
+    *) echo "unknown option: $1 (try -h)" >&2; exit 2 ;;
+  esac
+  shift
+done
+[[ "$DAYS" =~ ^[0-9]+$ ]] || { echo "--days needs a number" >&2; exit 2; }
+
+DB_ENV_VAR="${WORKTREE_DB_ENV_VAR:-DEV_DATABASE_NAME}"
+TEST_DB_ENV_VAR="${WORKTREE_TEST_DB_ENV_VAR:-TEST_DATABASE_NAME}"
+PROTECTED="${PROTECTED_BRANCHES:-main|master|staging|qa|develop}"
+
+if [ -t 1 ]; then
+  BOLD=$'\033[1m'; DIM=$'\033[2m'; G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[31m'; X=$'\033[0m'
+else
+  BOLD=""; DIM=""; G=""; Y=""; R=""; X=""
+fi
+
+# Anchor to the repo's MAIN worktree (the one holding the shared .git), so the report
+# is identical run from any worktree of the repo.
+MAIN=""; PARENT=""; REPO_NAME=""; GIT_COMMON_DIR=""
+if GIT_COMMON_DIR="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" &&
+   [ -n "$GIT_COMMON_DIR" ]; then
+  MAIN="$(dirname "$GIT_COMMON_DIR")"
+  PARENT="$(dirname "$MAIN")"
+  REPO_NAME="$(basename "$MAIN")"
+fi
+[ -n "$MAIN" ] || { echo "orphans: not a git repository. Run it from inside the repo you want to tidy." >&2; exit 1; }
+DB_PREFIX="${REPO_NAME//-/_}"
+
+NOW="$(date +%s)"
+
+# BSD and GNU disagree on both of these; resolve once rather than at every call site.
+if stat -f '%m' . >/dev/null 2>&1; then
+  STAT_MTIME=(-f '%m')
+else
+  STAT_MTIME=(-c '%Y')
+fi
+file_mtime() { stat "${STAT_MTIME[@]}" "$1" 2>/dev/null || echo 0; }
+if date -r 0 >/dev/null 2>&1; then
+  fmt_date() { date -r "$1" '+%Y-%m-%d'; }
+else
+  fmt_date() { date -d "@$1" '+%Y-%m-%d'; }
+fi
+
+days_since() { echo $(( (NOW - $1) / 86400 )); }
+TODAY="$(fmt_date "$NOW")"; YESTERDAY="$(fmt_date $((NOW - 86400)))"
+age_phrase() {   # epoch -> "12 days ago (2026-08-16)" | "unknown"
+  [ "${1:-0}" -gt 0 ] || { echo "unknown"; return; }
+  local on; on="$(fmt_date "$1")"
+  case "$on" in
+    "$TODAY")     echo "today" ;;
+    "$YESTERDAY") echo "yesterday" ;;
+    *)            echo "$(days_since "$1") days ago ($on)" ;;
+  esac
+}
+newest() {   # epochs… -> largest
+  local best=0 e
+  for e in "$@"; do [ "${e:-0}" -gt "$best" ] && best="$e"; done
+  echo "$best"
+}
+human_kb() {   # kilobytes -> "1.2 GB"
+  awk -v k="$1" 'BEGIN{ if (k>=1048576) printf "%.1f GB", k/1048576; else if (k>=1024) printf "%.0f MB", k/1024; else printf "%d KB", k }'
+}
+
+# Read KEY out of an .env file the way dotenv does: everything after the first '=',
+# minus a trailing comment, surrounding whitespace and wrapping quotes.
+env_value() {   # file key -> value | ""
+  local file="$1" key="$2" line
+  [ -f "$file" ] || return 0
+  line="$(grep -E "^[[:space:]]*${key}[[:space:]]*=" "$file" | tail -n1 || true)"
+  [ -n "$line" ] || return 0
+  line="${line#*=}"; line="${line%$'\r'}"
+  line="$(printf '%s' "$line" | sed -E 's/[[:space:]]+#.*$//')"
+  line="${line#"${line%%[![:space:]]*}"}"; line="${line%"${line##*[![:space:]]}"}"
+  case "$line" in \"*\") line="${line#\"}"; line="${line%\"}" ;; \'*\') line="${line#\'}"; line="${line%\'}" ;; esac
+  printf '%s\n' "$line"; return 0
+}
+
+# Machine-readable mode prints databases only, and prints them itself; every human
+# line in this script goes through these two.
+if [ "$PORCELAIN" = 1 ]; then
+  heading() { :; }
+  hint()    { :; }
+else
+heading() { printf '\n%s%s%s\n%s%s%s\n' "$BOLD" "$1" "$X" "$DIM" "$(printf '%.0s─' $(seq 1 ${#1}))" "$X"; }
+hint()    { printf '%s  %s%s\n' "$DIM" "$1" "$X"; }
+fi
+
+WORKTREE_DIRS=()   # every registered worktree path, main checkout first
+WORKTREE_BRANCHES=()
+WORKTREE_PRUNABLE=()
+read_worktrees() {
+  local wt="" br="" pr=""
+  while IFS= read -r line; do
+    case "$line" in
+      "worktree "*) wt="${line#worktree }" ;;
+      "branch "*)   br="${line#branch refs/heads/}" ;;
+      "detached")   br="(detached)" ;;
+      "prunable"*)  pr="${line#prunable }" ;;
+      "")           [ -n "$wt" ] && { WORKTREE_DIRS+=("$wt"); WORKTREE_BRANCHES+=("${br:--}"); WORKTREE_PRUNABLE+=("$pr"); }
+                    wt=""; br=""; pr="" ;;
+    esac
+  done < <(git worktree list --porcelain; echo)
+}
+read_worktrees
+
+# ---------------------------------------------------------------------------
+# Databases
+# ---------------------------------------------------------------------------
+ORPHAN_DB_STEMS=""   # consumed by the worktree section, to link a dead directory to its databases
+
+db_section() {
+  heading "DATABASES  (leftover = no live worktree or checkout names it)"
+
+  command -v psql >/dev/null 2>&1 || { hint "psql not on PATH — skipped."; return 0; }
+  psql -tAc 'select 1' postgres >/dev/null 2>&1 || { hint "no local postgres answering — skipped."; return 0; }
+
+  local claimed="" dir env dev test
+  for dir in "${WORKTREE_DIRS[@]}"; do
+    env="$dir/.env"
+    dev="$(env_value "$env" "$DB_ENV_VAR")";       [ -n "$dev" ]  || dev="${DB_PREFIX}_development"
+    test="$(env_value "$env" "$TEST_DB_ENV_VAR")"; [ -n "$test" ] || test="${DB_PREFIX}_test"
+    claimed+="$dev"$'\n'"$test"$'\n'
+  done
+
+  # A parallel_tests worker database is <test db><n>, so it belongs to whoever owns
+  # the base name. Claimed base => claimed worker; orphaned base => orphaned worker.
+  is_claimed() {
+    local d="$1" base
+    printf '%s' "$claimed" | grep -qxF "$d" && return 0
+    base="$(printf '%s' "$d" | sed -E 's/[0-9]+$//')"
+    [ "$base" != "$d" ] && printf '%s' "$claimed" | grep -qxF "$base"
+  }
+
+  local data_dir busy
+  data_dir="$(psql -tAc 'show data_directory' postgres 2>/dev/null || true)"
+  busy="$(psql -tAF'|' -c "select datname, count(*) from pg_stat_activity where datname is not null group by 1" postgres 2>/dev/null || true)"
+
+  # Newest file under the database's directory in the data dir. An old date proves the
+  # database is untouched; a recent one does not, because autovacuum writes here too.
+  db_touched() {
+    local oid="$1" newest_file
+    [ -n "$data_dir" ] && [ -r "$data_dir/base/$oid" ] || { echo 0; return; }
+    newest_file="$(find "$data_dir/base/$oid" -type f -exec stat "${STAT_MTIME[@]}" {} + 2>/dev/null | sort -rn | head -1 || true)"
+    echo "${newest_file:-0}"
+  }
+
+  local -a S_STEM S_MEMBERS S_COUNT S_KB S_TOUCHED S_BUSY S_INUSE
+  local claimed_n=0 foreign_n=0 name oid kb stem label kind suffix conns touched i found inuse
+  while IFS='|' read -r oid name kb; do
+    [ -n "$name" ] || continue
+    case "$name" in
+      "$DB_PREFIX"_*) ;;
+      *) foreign_n=$((foreign_n + 1)); continue ;;
+    esac
+    inuse=0
+    if is_claimed "$name"; then inuse=1; claimed_n=$((claimed_n + 1)); fi
+
+    # parallel_tests worker databases are grouped apart from the dev/test pair they
+    # belong to: they are written to on a different rhythm, and dropped on different
+    # grounds (the next parallel run recreates them).
+    case "$name" in
+      *_test[0-9] | *_test[0-9][0-9]) stem="$(printf '%s' "$name" | sed -E 's/_test[0-9]+$//')"; label="${stem}_test*"; kind=workers ;;
+      *) stem="$(printf '%s' "$name" | sed -E 's/_(development|test)$//')"; label="$stem"; kind=base ;;
+    esac
+    suffix="${name#"$stem"}"; suffix="${suffix#_}"; [ -n "$suffix" ] || suffix="(unsuffixed)"
+    conns="$(printf '%s\n' "$busy" | awk -F'|' -v d="$name" '$1==d{print $2}')"
+    touched="$(db_touched "$oid")"
+
+    if [ "$PORCELAIN" = 1 ]; then
+      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$name" "$label" "$kind" "$kb" "$touched" "${conns:-0}" "$inuse"
+      continue
+    fi
+
+    found=""
+    for i in "${!S_STEM[@]}"; do [ "${S_STEM[$i]}" = "$label" ] && { found="$i"; break; }; done
+    if [ -z "$found" ]; then
+      S_STEM+=("$label"); S_MEMBERS+=("$suffix"); S_COUNT+=(1); S_KB+=("$kb")
+      S_TOUCHED+=("$touched"); S_BUSY+=("${conns:-0}"); S_INUSE+=("$inuse")
+      found=$(( ${#S_STEM[@]} - 1 ))
+    else
+      S_MEMBERS[$found]="${S_MEMBERS[$found]} $suffix"
+      S_COUNT[$found]=$(( S_COUNT[found] + 1 ))
+      S_KB[$found]=$(( S_KB[found] + kb ))
+      S_TOUCHED[$found]="$(newest "${S_TOUCHED[$found]}" "$touched")"
+      S_BUSY[$found]=$(( S_BUSY[found] + ${conns:-0} ))
+      [ "$inuse" = 1 ] && S_INUSE[$found]=1
+    fi
+  done < <(psql -tAF'|' -c "select oid, datname, pg_database_size(oid)/1024 from pg_database where not datistemplate order by datname" postgres)
+
+  local orphan_groups=0
+  for i in "${!S_STEM[@]}"; do [ "${S_INUSE[$i]}" = 1 ] || orphan_groups=$((orphan_groups + 1)); done
+  if [ "$orphan_groups" -eq 0 ]; then
+    echo
+    hint "Nothing left over. ${claimed_n} database(s) in use, ${foreign_n} belonging elsewhere."
+    return 0
+  fi
+
+  echo
+  local total_kb=0 groups=0 stale_inuse=0 col dot tail
+  for i in $(for i in "${!S_STEM[@]}"; do echo "${S_TOUCHED[$i]} $i"; done | sort -n | awk '{print $2}'); do
+    tail=""
+    if [ "${S_INUSE[$i]}" = 1 ]; then
+      col=$DIM; dot="·"; tail=" · in use"
+      [ "$(days_since "${S_TOUCHED[$i]:-0}")" -ge "$DAYS" ] && stale_inuse=$((stale_inuse + 1))
+      [ "$SHOW_ALL" = 1 ] || continue
+    else
+      groups=$((groups + 1)); total_kb=$(( total_kb + S_KB[i] ))
+      ORPHAN_DB_STEMS+="${S_STEM[$i]%_test\*}"$'\n'
+      if   [ "${S_BUSY[$i]}" -gt 0 ];                             then col=$R; dot="▲"
+      elif [ "$(days_since "${S_TOUCHED[$i]:-0}")" -lt "$DAYS" ]; then col=$Y; dot="●"
+      else                                                             col=$G; dot="●"
+      fi
+    fi
+    printf "${col}%s${X} %-52s %s%2d db  %8s  last written %s%s%s\n" \
+      "$dot" "${S_STEM[$i]}" "$DIM" "${S_COUNT[$i]}" "$(human_kb "${S_KB[$i]}")" "$(age_phrase "${S_TOUCHED[$i]}")" "$tail" "$X"
+    printf "  ${DIM}%s${X}\n" "$(printf '%s' "${S_MEMBERS[$i]}" | tr ' ' '\n' | sort -V | tr '\n' ' ')"
+    [ "${S_BUSY[$i]}" -gt 0 ] && [ "${S_INUSE[$i]}" != 1 ] &&
+      printf "  ${R}%s open connection(s) — something is using it right now${X}\n" "${S_BUSY[$i]}"
+  done
+
+  echo
+  hint "${groups} leftover group(s), $(human_kb "$total_kb") reclaimable · ${claimed_n} in use · ${foreign_n} belong to other repos"
+  [ "$stale_inuse" -gt 0 ] && [ "$SHOW_ALL" != 1 ] &&
+    hint "${stale_inuse} in-use group(s) have not been written to in ${DAYS} days either — ${BOLD}orphans --all${X}${DIM} lists them"
+  hint "${G}●${X}${DIM} safe · ${Y}●${X}${DIM} written to within ${DAYS} days (autovacuum does this too — check before dropping) · ${R}▲${X}${DIM} open connections"
+  hint "Drop them with: ${BOLD}delete-stale-databases${X}${DIM}   (a dropped database is NOT recoverable)"
+}
+
+# ---------------------------------------------------------------------------
+# Worktrees
+# ---------------------------------------------------------------------------
+worktree_section() {
+  heading "WORKTREES  (leftover = no git activity in ${DAYS} days)"
+  echo
+
+  local i dir branch admin touched commit stale=0 shown=0
+  for i in "${!WORKTREE_DIRS[@]}"; do
+    dir="${WORKTREE_DIRS[$i]}"; branch="${WORKTREE_BRANCHES[$i]}"
+    admin="$(git -C "$dir" rev-parse --path-format=absolute --git-dir 2>/dev/null || true)"
+    commit=0
+    [ "$branch" != "(detached)" ] && [ "$branch" != "-" ] &&
+      commit="$(git -C "$MAIN" log -1 --format=%ct "refs/heads/$branch" 2>/dev/null || echo 0)"
+    touched="$(newest "$commit" \
+      "$( [ -n "$admin" ] && file_mtime "$admin/logs/HEAD" || echo 0 )" \
+      "$( [ -n "$admin" ] && file_mtime "$admin/index" || echo 0 )")"
+
+    if [ "$(days_since "$touched")" -ge "$DAYS" ]; then stale=1; else
+      [ "$SHOW_ALL" = 1 ] || { [ -n "${WORKTREE_PRUNABLE[$i]}" ] || continue; }
+      stale=0
+    fi
+    shown=$((shown + 1))
+    local col dot; if [ "$stale" = 1 ]; then col=$G; dot="●"; else col=$DIM; dot="·"; fi
+    printf "${col}%s %-58s${X} ${DIM}%s${X}\n" "$dot" "$(basename "$dir")" "last touched $(age_phrase "$touched")"
+    printf "  ${DIM}branch %s${X}\n" "$branch"
+    [ -n "${WORKTREE_PRUNABLE[$i]}" ] && printf "  ${Y}registration is prunable: %s — run 'git worktree prune'${X}\n" "${WORKTREE_PRUNABLE[$i]}"
+  done
+
+  # Sibling directories named like a worktree of this repo that git does not track:
+  # what an interrupted `worktree rm` leaves behind. They also make the name
+  # unreusable, since `git worktree add` refuses a non-empty path.
+  local d base underscored dbs
+  for d in "$PARENT/$REPO_NAME"-*/; do
+    [ -d "$d" ] || continue
+    d="${d%/}"; base="$(basename "$d")"
+    printf '%s\n' "${WORKTREE_DIRS[@]}" | grep -qxF "$d" && continue
+    shown=$((shown + 1))
+    printf "${R}▲ %-58s${X} ${DIM}untracked directory, last touched %s${X}\n" "$base" "$(age_phrase "$(file_mtime "$d")")"
+    printf "  ${DIM}%s on disk · git does not know about it · the name cannot be reused until it goes${X}\n" \
+      "$(human_kb "$(du -sk "$d" 2>/dev/null | awk '{print $1}')")"
+    underscored="${base//-/_}"
+    dbs="$(printf '%s' "$ORPHAN_DB_STEMS" | grep -xF "$underscored" || true)"
+    [ -n "$dbs" ] && printf "  ${DIM}its databases are in the list above (%s_*)${X}\n" "$underscored"
+  done
+
+  [ "$shown" -eq 0 ] && hint "Nothing left over."
+  echo
+  hint "Remove one with: ${BOLD}worktree rm <name>${X}${DIM} (drops its databases and branch too)"
+}
+
+# ---------------------------------------------------------------------------
+# Branches
+# ---------------------------------------------------------------------------
+branch_section() {
+  heading "BRANCHES  (leftover = no commit or checkout in ${DAYS} days)"
+  echo
+
+  local mainline="" cand
+  for cand in origin/main origin/master main master; do
+    git -C "$MAIN" rev-parse --verify --quiet "$cand" >/dev/null && { mainline="$cand"; break; }
+  done
+
+  local current wt_branches shown=0
+  current="$(git symbolic-ref --quiet --short HEAD || true)"
+  wt_branches="$(printf '%s\n' "${WORKTREE_BRANCHES[@]}")"
+
+  local b commit reflog touched note col dot
+  while IFS= read -r b; do
+    [ -n "$b" ] || continue
+    printf '%s' "$b" | grep -qE "^(${PROTECTED})$" && continue
+    commit="$(git -C "$MAIN" log -1 --format=%ct "refs/heads/$b" 2>/dev/null || echo 0)"
+    reflog="$(file_mtime "$GIT_COMMON_DIR/logs/refs/heads/$b")"
+    touched="$(newest "$commit" "$reflog")"
+    [ "$(days_since "$touched")" -ge "$DAYS" ] || { [ "$SHOW_ALL" = 1 ] || continue; }
+
+    note=""
+    [ -n "$mainline" ] && git -C "$MAIN" merge-base --is-ancestor "refs/heads/$b" "$mainline" 2>/dev/null && note="merged into ${mainline#origin/}"
+    printf '%s\n' "$wt_branches" | grep -qxF "$b" && note="${note:+$note · }checked out in a worktree"
+    [ "$b" = "$current" ] && note="${note:+$note · }current branch"
+
+    if [ -n "$note" ] && [ "$note" != "merged into ${mainline#origin/}" ]; then col=$DIM; dot="·"; else col=$G; dot="●"; fi
+    shown=$((shown + 1))
+    printf "${col}%s %-58s${X} ${DIM}%s%s${X}\n" "$dot" "$b" "last touched $(age_phrase "$touched")" "${note:+ · $note}"
+  done < <(git -C "$MAIN" for-each-ref --format='%(refname:short)' refs/heads/)
+
+  [ "$shown" -eq 0 ] && hint "Nothing left over."
+  echo
+  hint "Review and delete with: ${BOLD}delete-finished-branches${X}${DIM} (classifies merged / pushed / risky first)"
+}
+
+if [ "$PORCELAIN" = 1 ]; then db_section; exit 0; fi
+
+printf '\n%sLeftovers in %s%s %s(staleness threshold: %s days)%s\n' "$BOLD" "$REPO_NAME" "$X" "$DIM" "$DAYS" "$X"
+db_section
+worktree_section
+branch_section
+echo

@@ -46,11 +46,15 @@
 #   WORKTREE_RUN_CMD           command to start the dev stack      (default: bin/dev)
 #   WORKTREE_BASE_BRANCH       branch new work forks from          (default: auto-detected)
 #
-# Base-branch resolution (when not passed as an arg): WORKTREE_BASE_BRANCH,
-# else origin's default branch (origin/HEAD), else main/master.
+# Base-branch resolution (when not passed as an arg): WORKTREE_BASE_BRANCH, else origin's
+# default branch as a REMOTE-tracking ref (origin/main), else local main/master. Resolving
+# to origin/main rather than main is what stops a worktree inheriting a stale local trunk:
+# `new` fetches first, and that moves origin/main only. A base passed as an argument is
+# taken literally, so `worktree new foo 5000 main` still branches from local main.
 #
 # Usage:
 #   worktree new <name> [port] [base-branch]   # create + set up   (base-branch default: auto-detected)
+#   worktree new                               # same, on a generated two-word name
 #   worktree ls                                # list worktrees (table: branch/port/db)
 #   worktree rm [<name>|-i]                    # remove a worktree (menu if no name) + branch + drop db,
 #                                              #   then asks separately about deleting origin/<branch>,
@@ -155,6 +159,52 @@ else
 fi
 
 slugify() { echo "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g'; }
+
+# Two unconnected words — "wuthering-butterfly" — for a worktree whose OWN name does
+# not matter, because the branch it ends up on will be named by something else: a
+# ticket tool run inside it switches to the branch the tracker wants, and the script
+# already tolerates that drift (resolve_worktree matches the directory too, rm reads
+# the db names from the worktree's .env). Deliberately digit-free, so
+# port_from_ticket cannot read a ticket number out of a name that has none.
+WORD_ADJECTIVES=(
+  wuthering fallen gigantic velvet brazen hollow gilded restless amber crooked
+  silent marbled feral tangled lucid sullen bristling opal drifting luminous
+  jagged plush wistful rusted vaulting candid glassy murmuring obstinate saffron
+  tidal unruly verdant wandering brindled cobalt dappled errant fervent gossamer
+  halcyon indigo jubilant kindred lofty mottled nimble ochre
+)
+WORD_NOUNS=(
+  butterfly rainbow possum lantern harbour thistle magpie quarry otter ledger
+  comet badger orchard pelican anvil cypress falcon gully heron juniper
+  kestrel lichen mackerel narwhal obelisk puffin quoll raven starling tumbleweed
+  urchin wombat yarrow zephyr bramble cistern estuary grotto lagoon meadow
+  nimbus plateau ravine sandbar tundra wharf glacier reef
+)
+
+# 0 when a name is already spoken for. Checks more than git does: a local branch, an
+# origin branch, an existing worktree, AND a sibling directory git no longer tracks —
+# the last because cmd_new would otherwise pick a name whose directory is still on
+# disk from an orphaned worktree, and `git worktree add` fails on a non-empty path.
+name_taken() {   # name -> 0 if taken
+  local name="$1" slug; slug="$(slugify "$name")"
+  if git show-ref --verify --quiet "refs/heads/$name"; then return 0; fi
+  if git show-ref --verify --quiet "refs/remotes/origin/$name"; then return 0; fi
+  if [ -e "$PARENT/${REPO_NAME}-$slug" ]; then return 0; fi
+  if resolve_worktree "$name" >/dev/null 2>&1; then return 0; fi
+  return 1
+}
+
+random_name() {   # -> "<adjective>-<noun>", not taken by anything above
+  local i adj noun name
+  for i in $(seq 1 80); do
+    adj="${WORD_ADJECTIVES[RANDOM % ${#WORD_ADJECTIVES[@]}]}"
+    noun="${WORD_NOUNS[RANDOM % ${#WORD_NOUNS[@]}]}"
+    name="$adj-$noun"
+    if ! name_taken "$name"; then printf '%s\n' "$name"; return 0; fi
+  done
+  echo "ERROR: 80 generated names were all taken. Pass a name explicitly." >&2
+  return 1
+}
 
 # md5 hex digest of stdin. macOS ships `md5`, Linux ships `md5sum` — the digest is the
 # same either way, so a db-name suffix or overmind socket path computed on one is
@@ -435,7 +485,9 @@ branch_exists() {
 resolve_base() {
   if [ -n "${WORKTREE_BASE_BRANCH:-}" ]; then echo "$WORKTREE_BASE_BRANCH"; return 0; fi
   local head
-  head="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')"
+  # The remote-tracking ref, not the bare branch name: `new` fetches immediately before
+  # calling this, and a fetch moves origin/main while leaving a local main days behind.
+  head="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)"
   [ -n "$head" ] && { echo "$head"; return 0; }
   for b in main master; do branch_exists "$b" && { echo "$b"; return 0; }; done
   # A repo whose trunk is `develop` reaches here with no main and no master. Falling back
@@ -480,7 +532,7 @@ pin_dirs() {
 # PER CANDIDATE PORT" (hundreds of processes when the low end of the range is busy) to
 # a single pass. The listener half is therefore a SNAPSHOT — call pins_reset before
 # re-checking a port whose freshness matters, which is what closes the TOCTOU window
-# around `new`'s confirmation prompt.
+# in `new` between choosing a port and pinning it.
 PIN_LIST=$'\n'
 PINS_LOADED=0
 
@@ -681,7 +733,11 @@ dirty_count() {   # dir -> count
 
 cmd_new() {
   require_repo
-  local name="${1:?usage: worktree new <name> [port] [base-branch]}"
+  local name="${1:-}" name_src="given"
+  if [ -z "$name" ]; then
+    name="$(random_name)"
+    name_src="generated"
+  fi
   local slug; slug="$(slugify "$name")"
   local dir="$PARENT/${REPO_NAME}-$slug"
   local stem; stem="$(db_stem_for "$slug")"
@@ -735,7 +791,11 @@ cmd_new() {
   local base="${3:-$(resolve_base)}"
 
   echo "▶ worktree : $dir"
-  echo "▶ branch   : $name (from $base)"
+  if [ "$name_src" = "generated" ]; then
+    echo "▶ branch   : $name (from $base)  ${DIM}· two unconnected words, generated${X}"
+  else
+    echo "▶ branch   : $name (from $base)"
+  fi
   echo "▶ database : $db  (via \$$DB_ENV_VAR)"
   echo "▶ test db  : $test_db  (via \$$TEST_DB_ENV_VAR)"
   echo "▶ port     : $port  ($port_src)"
@@ -759,33 +819,24 @@ cmd_new() {
   [ -f "$MAIN/Gemfile" ]      && echo "    - bundle install into vendor/bundle (gems isolated from the shared gem home)"
   [ -x "$MAIN/bin/rails" ]    && echo "    - bin/rails db:prepare (creates dbs $db + $test_db)"
   echo ""
-  read -r -p "Proceed? [y/N] " reply || reply=""
-  case "$reply" in
-    [yY] | [yY][eE][sS]) ;;
-    *) echo "Aborted."; exit 1 ;;
-  esac
-
-  # Close the check-to-use gap (TOCTOU). The port was chosen well above so it could
-  # be shown in the summary — but nothing RESERVED it, and the prompt you just
-  # answered can sit open indefinitely. A second `worktree new` in another tab (or
-  # this one, left waiting while you set up another) can claim the same number in
-  # between: both checked "free", both were right at the time, both then pin it.
-  # Re-checking here shrinks the window from "however long you took to answer y"
-  # down to the second or so before .env is written.
+  # Close the check-to-use gap (TOCTOU). Nothing RESERVES the port chosen above, and
+  # the origin fetch between there and here can take seconds — long enough for a
+  # second `worktree new` in another tab to check the same number, agree it is free,
+  # and pin it. Both were right at the time; both then pin it.
   #
-  # pins_reset is what makes that re-check mean anything: the pin + listener scan is
+  # pins_reset is what makes the re-check mean anything: the pin + listener scan is
   # cached after its first use (see load_pins), so without dropping the cache this
-  # would just re-read the same snapshot taken before the prompt and always agree.
+  # re-reads the same snapshot and always agrees.
   pins_reset
   if ! port_free "$port"; then
     if [ "$port_src" = "explicit" ]; then
-      echo "⚠ port $port was claimed while you were confirming — pinning it anyway," >&2
+      echo "⚠ port $port was claimed during setup — pinning it anyway," >&2
       echo "  since you asked for it by name. Expect a clash." >&2
     else
       local stolen="$port"
       port="$(pick_port)"
-      port_src="re-picked ($stolen was claimed while you were confirming)"
-      echo "▶ port reassigned: $stolen → $port  ($stolen went to something else mid-prompt)"
+      port_src="re-picked ($stolen was claimed during setup)"
+      echo "▶ port reassigned: $stolen → $port  ($stolen went to something else during setup)"
     fi
   fi
   if ! port_free "$vite_port"; then
@@ -811,7 +862,9 @@ cmd_new() {
   else
     # Brand new branch off the base.
     echo "▶ creating new branch from $base"
-    git worktree add -b "$name" "$dir" "$base"
+    # --no-track: branch.autoSetupMerge defaults to setting an upstream when the start
+    # point is a remote-tracking ref, which would make `git pull` here pull main.
+    git worktree add --no-track -b "$name" "$dir" "$base"
   fi
 
   # From here on the worktree EXISTS, so a failure in any step below leaves something
@@ -1105,11 +1158,73 @@ resolve_worktree() {   # query -> "<dir>\t<branch>"
   return 1
 }
 
+# Sweep the shell `git worktree remove` can leave behind.
+#
+# The removal deletes the tree entry by entry, and a process still shutting down —
+# bootsnap writing its compile cache as the stack stops — creates a file in a directory
+# git has already walked past. Git warns, returns 0, and leaves a <repo>-<slug>
+# directory holding nothing but tmp/. That shell makes the name unusable: `git worktree
+# add` refuses a non-empty path, and name_taken counts a sibling directory as taken.
+#
+# Safety: only a direct child of the main checkout's parent, named <repo>-*, already
+# deregistered by git (no .git entry), and holding nothing but the regenerable paths
+# below. Anything else is reported and left exactly where it is — this never becomes a
+# blind `rm -rf` of a directory whose contents were not checked first.
+SWEEPABLE=(tmp log .overmind.sock .DS_Store)
+SWEEP_LEFTOVER=""   # set to the path when a directory survives, so the summary can't overclaim
+sweep_removed_dir() {   # dir
+  local dir="$1" entry name sw keep leftovers=()
+  [ -d "$dir" ] || return 0
+
+  if [ "$(dirname "$dir")" != "$PARENT" ] || [ -e "$dir/.git" ]; then
+    SWEEP_LEFTOVER="$dir"; echo "  ${Y}! $dir is still on disk — remove it yourself${X}"
+    return 0
+  fi
+  case "$(basename "$dir")" in
+    "${REPO_NAME}"-*) ;;
+    *) SWEEP_LEFTOVER="$dir"; echo "  ${Y}! $dir is still on disk — remove it yourself${X}"; return 0 ;;
+  esac
+
+  shopt -s nullglob dotglob
+  for entry in "$dir"/*; do
+    name="$(basename "$entry")"
+    keep=1
+    for sw in "${SWEEPABLE[@]}"; do
+      if [ "$name" = "$sw" ]; then keep=0; break; fi
+    done
+    if [ "$keep" = 1 ]; then leftovers+=("$name"); fi
+  done
+  shopt -u nullglob dotglob
+
+  if [ "${#leftovers[@]}" -gt 0 ]; then
+    SWEEP_LEFTOVER="$dir"
+    echo "  ${Y}! $dir survived the removal and still holds: ${leftovers[*]}${X}"
+    echo "  ${Y}  left alone — remove it yourself once you have looked at it${X}"
+    return 0
+  fi
+
+  # A process still writing can beat one pass exactly as it beat git's, so try a few
+  # times over a couple of seconds rather than hand back a directory that would have
+  # cleared itself a moment later.
+  local attempt
+  for attempt in 1 2 3; do
+    for entry in "${SWEEPABLE[@]}"; do rm -rf "${dir:?}/$entry" 2>/dev/null || true; done
+    if rmdir "$dir" 2>/dev/null; then
+      echo "  ${DIM}swept the directory a shutting-down process left behind${X}"
+      return 0
+    fi
+    sleep 1
+  done
+  SWEEP_LEFTOVER="$dir"
+  echo "  ${Y}! $dir could not be removed — remove it yourself${X}"
+}
+
 # Tear down one already-resolved worktree: confirm, stop its stack, drop its dev+test
 # dbs (names read from the worktree's own .env — authoritative), remove the worktree,
 # delete its branch, and report ONLY what actually happened. Returns 1 if declined.
 remove_worktree() {   # dir branch
   local dir="$1" branch="$2"
+  SWEEP_LEFTOVER=""   # `rm -i` removes several in one run; each reports only its own
 
   # Stand in the MAIN checkout for the whole teardown. `git worktree remove` will
   # happily delete the directory you are standing in, and every git call after that
@@ -1185,11 +1300,21 @@ remove_worktree() {   # dir branch
   # the delete doing the right thing near live files. See claude_unseed.
   claude_unseed "$dir"
   echo "▶ removing worktree..."
-  git worktree remove "$dir" --force
+  # git deregisters the worktree BEFORE deleting its files, and gives up — non-zero — on
+  # the first path it cannot delete. Uncaught, that failure takes set -e out of the rest
+  # of the teardown: branch still present, half-deleted directory on disk, and nothing
+  # said about either. The sweep decides what happens to what is left.
+  git worktree remove "$dir" --force || echo "  ${Y}! git could not finish deleting the directory${X}"
+  sweep_removed_dir "$dir"
   if [ -n "$branch" ]; then
     git branch -D "$branch" 2>/dev/null || echo "  (couldn't delete branch '$branch' - delete it manually)"
   fi
-  echo "${G}✅ removed worktree${X}${branch:+, branch '$branch',} and dbs ($db, $test_db)"
+  if [ -n "$SWEEP_LEFTOVER" ]; then
+    echo "${Y}✔ deregistered the worktree${X}${branch:+, deleted branch '$branch',} and dropped its dbs ($db, $test_db)"
+    echo "${Y}  — but $SWEEP_LEFTOVER is still on disk, and the name stays unusable until it goes.${X}"
+  else
+    echo "${G}✅ removed worktree${X}${branch:+, branch '$branch',} and dbs ($db, $test_db)"
+  fi
   # Log + print a one-paste restore for the branch ref (its commits survive in the
   # object store until git gc, so this recreates the branch pointing at the same tip).
   if [ -n "$branch" ] && [ -n "$ASSESS_SHA" ]; then
@@ -1221,6 +1346,7 @@ branch_base_ref() {
   m="$(mainline_ref || true)"
   if [ -n "$m" ]; then echo "$m"; return 0; fi
   b="$(resolve_base || true)"
+  b="${b#origin/}"
   if [ -n "$b" ]; then
     git rev-parse --verify --quiet "origin/$b" >/dev/null 2>&1 && { echo "origin/$b"; return 0; }
     git rev-parse --verify --quiet "$b"        >/dev/null 2>&1 && { echo "$b";        return 0; }
@@ -1408,7 +1534,14 @@ USAGE
   worktree <command> [args]
 
 COMMANDS
-  new <name> [port] [base-branch]
+  new [<name>] [port] [base-branch]
+      With no NAME, one is generated from two unconnected words
+      ("wuthering-butterfly") — for work whose branch will be named later by
+      something else, e.g. a ticket tool run inside the worktree that switches to
+      the branch its tracker wants. The directory, .env and databases keep the
+      generated name; the port is auto-picked (a two-word name carries no ticket
+      number). Positional args being what they are, a port or base-branch needs a
+      NAME as well.
       Create a worktree at ../<repo>-<name> on branch <name>, with its own dev +
       test databases (<repo>_<name>_development and <repo>_<name>_test),
       node_modules, and a
@@ -1416,7 +1549,7 @@ COMMANDS
       is seeded from the main checkout's .env when there is one — it's normally
       gitignored, so git can't bring it across — with those four keys overridden
       and every other key carried over.
-      Prompts before doing anything. If
+      Prints its plan, then runs it — there is no confirmation prompt. If
       <name> already exists (locally or on origin) it's checked out; otherwise
       it's created from [base-branch].
         port         optional; defaults to the ticket number in <name> (PROJ-1989
@@ -1426,7 +1559,9 @@ COMMANDS
                      Pins are read from every worktree of this repo AND every
                      sibling dir of the main checkout, so other projects count,
                      and PORT + VITE_RUBY_PORT share one number space.
-        base-branch  optional; defaults to origin's default branch, else main/master
+        base-branch  optional; defaults to origin's default branch as a remote-tracking
+                     ref (origin/main) so a stale local main is never inherited, else
+                     local main/master. Pass `main` explicitly to branch from local main.
       e.g.  worktree new PROJ-123-fix-header
             worktree new PROJ-123-fix-header 5000
             worktree new hotfix 5000 main

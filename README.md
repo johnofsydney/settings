@@ -93,6 +93,42 @@ They're project-agnostic — repo name, db, and port are derived from the curren
 - `dspec [base] [rspec args]` — rspec the specs affected by branch changes.
 - `backup-local-db [db_name]` — `pg_dump` the local `<dir>_development` db to a timestamped file in `tmp/`.
 - `delete-finished-branches` — review and delete finished branches, safely.
+- `orphans` — report the leftovers: unused databases, worktrees and branches. Read-only.
+- `delete-stale-databases` — drop the databases `orphans` finds unused.
+
+### orphans / delete-stale-databases
+
+`orphans` is read-only: it reports what is left over and names the command that removes each
+kind (`delete-stale-databases`, `worktree rm`, `delete-finished-branches`). The three kinds are
+judged differently, and the difference is the point:
+
+- **Databases by reachability, not age.** In use = a live worktree's `.env` names it, or it is the
+  main checkout's default, or it is a `parallel_tests` worker (`<db>2 … <db>N`) of one of those.
+  Age can't be the test, because autovacuum writes to idle databases — an old date proves disuse,
+  a recent one proves nothing. Age is shown as a warning colour instead of a verdict.
+- **Worktrees and branches by age**, since a live one looks exactly like an abandoned one. Also
+  listed: sibling directories git no longer tracks, which block the name being reused.
+
+```
+orphans                  # the report, 14-day staleness threshold
+orphans --days 30 --all  # different threshold; --all also lists what IS in use
+orphans --porcelain      # one tab-separated line per database, for scripts
+```
+
+`delete-stale-databases` classifies nothing itself — it reads `orphans --porcelain` and drops
+what that names, so the two can never disagree about what "in use" means. Databases go a family
+at a time (one checkout's dev/test pair, or one checkout's workers). A database with an open
+connection is never dropped, in any mode. Nothing is dumped first: these are development and test
+databases, and each drop is logged to `.git/dropped-databases.log` with the command that rebuilds
+it.
+
+```
+delete-stale-databases                 # dry-run: show what would go
+delete-stale-databases --unclaimed     # drop every family nothing claims (one confirm)
+delete-stale-databases -i              # decide family by family
+delete-stale-databases --cold-workers  # also offer a live checkout's parallel_tests workers
+                                       #   when they have been cold for --days (default 14)
+```
 
 ### delete-finished-branches
 
