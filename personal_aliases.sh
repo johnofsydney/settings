@@ -43,12 +43,7 @@ iterm_profile() {
 # type `matrix` to load the Matrix profile
 alias matrix='iterm_profile "Matrix"'
 
-# # Run claude under the Matrix profile, then restore the default on exit.
-# claude() {
-#   iterm_profile "Matrix"
-#   command claude "$@"
-#   local ret=$?          # was: local status=$?  (status is read-only in zsh)
-#   iterm_profile "$ITERM_DEFAULT_PROFILE"
-#   return $ret           # was: return $status
-# }
+# Anything wrapping `claude` belongs in my_extensions.sh, alongside the wrapper that
+# applies ~/.claude/overlay.json. This file is sourced later, so a claude() defined
+# here would silently replace that one and drop the profile's model and effort.
 ##################################################

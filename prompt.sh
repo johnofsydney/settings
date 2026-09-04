@@ -49,3 +49,12 @@ parse_mise_versions() {
 
 PROMPT="${YELLOW_BOLD}%*${RESET} ${GREEN_BOLD}%~${RESET} \$(parse_git_branch_status) \$(parse_mise_versions)
 $ "
+
+# zsh-syntax-highlighting must be sourced LAST — it wraps ZLE widgets, so anything
+# binding a widget after it (compinit in mac_settings.sh, fzf) goes unhighlighted.
+# prompt.sh is the final file ~/.zshrc sources, which is why this lives here.
+# $HOMEBREW_PREFIX is set by `brew shellenv` in ~/.zprofile; fall back to the
+# Apple-silicon default so this also works on Intel. Guarded so a missing plugin
+# doesn't error every shell.
+ZSH_SYNTAX_HL="${HOMEBREW_PREFIX:-/opt/homebrew}/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+[ -f "$ZSH_SYNTAX_HL" ] && source "$ZSH_SYNTAX_HL"

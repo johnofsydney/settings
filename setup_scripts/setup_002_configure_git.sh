@@ -18,9 +18,9 @@ git config --global pull.rebase false
 git config --global color.ui true
 git config --global fetch.prune true
 git config --global init.defaultBranch main
-git config --global --add push.default current
-git config --global --add push.autoSetupRemote true
-git config --global --add merge.ff true # when possible resolve the merge as a fast-forward (only update the branch pointer to match the merged branch; do not create a merge commit)
+git config --global push.default current
+git config --global push.autoSetupRemote true
+git config --global merge.ff true # when possible resolve the merge as a fast-forward (only update the branch pointer to match the merged branch; do not create a merge commit)
 
 git config --global column.ui auto
 git config --global branch.sort -committerdate
