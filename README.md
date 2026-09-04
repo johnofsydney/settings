@@ -21,7 +21,7 @@ doesn't matter.
 ./bootstrap.sh
 ```
 
-Installs Homebrew if missing, then runs all five setup scripts in order, prompting
+Installs Homebrew if missing, then runs all six setup scripts in order, prompting
 before each. Every script is idempotent, so it's safe to re-run.
 
 ## Running scripts individually
@@ -82,6 +82,18 @@ a custom folder or URL_ and select `iterm_preferences/`.
 - Prompts for a PostgreSQL major version (default `18`, or `skip`), then brew-installs `postgresql@<version>`, `redis`, `mise`.
 - Appends `mise activate` to `~/.zshrc` (fenced, so re-runs don't duplicate).
 - Starts the Postgres and Redis services.
+
+### 6. Claude Code config
+```
+./setup_scripts/setup_006_claude_config.sh
+```
+- Asks whether this is the `work` or `home` machine, then symlinks the shared config in
+  `claude/` into `~/.claude/` — global instructions, plus the machine context and the
+  model/effort overlay that the profile picks.
+- Re-running defaults to the profile already in place, so it never silently flips a
+  machine over.
+- `~/.claude/settings.json` and `~/.claude/skills/` are deliberately left alone: each
+  machine owns its own. See `claude/README.md` for what is shared and why.
 
 ## Global commands (`bin/`)
 

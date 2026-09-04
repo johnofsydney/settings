@@ -119,6 +119,7 @@ fi
 echo
 echo "Verify with:"
 echo "  ls -la $CLAUDE_DIR/{CLAUDE.md,machine.md,overlay.json,settings.json}"
+echo "The first three are links into this repo; settings.json must be a real file."
 echo "Then open a new shell (the claude() wrapper lives in my_extensions.sh) and run"
 echo "/context in a session to confirm the machine.md import resolved."
 

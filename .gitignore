@@ -12,6 +12,7 @@ env_variables.sh
 claude/settings.json
 claude/settings.json.bak
 claude/bin/
+claude/hooks/
 
 # Work-machine Claude context: internal team/project names, so it stays out of this
 # PUBLIC repo — same rule as work_aliases.sh. Costs nothing to sync, since the home
