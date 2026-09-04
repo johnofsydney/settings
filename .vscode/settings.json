@@ -1,3 +1,7 @@
+// WORKSPACE settings for the settings repo itself — VS Code reads this only while
+// this folder is open. The Peacock colours mark this window as the settings repo.
+// Settings meant for every project go in vscode/settings.json (no dot), which
+// setup_004 symlinks into VS Code.
 {
   "workbench.colorCustomizations": {
     "activityBar.background": "#b9f3bb",

@@ -1,3 +1,6 @@
+// GLOBAL VS Code settings. setup_004 symlinks this into VS Code and Insiders,
+// so every edit applies to every project on the machine.
+// Settings that should apply only inside THIS repo go in .vscode/settings.json.
 {
   "editor.wordWrap": "on",
   "editor.tabSize": 2,

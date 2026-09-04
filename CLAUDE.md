@@ -79,7 +79,12 @@ Some SSH aliases in `personal_aliases.sh` reference `$LESTER_REMOTE_DB_HOST` etc
 
 ## VS Code settings
 
-Both stable and Insiders point at the same `vscode/settings.json` via symlink, so any edit applies to both editors after a reload.
+Two directories, near-identical names, unrelated jobs — the same trap as `.claude/` vs `claude/`:
+
+- **`vscode/`** — the payload. `setup_004` symlinks `settings.json` and `keybindings.json` into both VS Code and VS Code Insiders' `Application Support` folders, so an edit here applies to **every project on the machine**, in both editors, after a reload.
+- **`.vscode/`** — VS Code's standard per-workspace directory, read **only while this repo is the open folder**. It holds the Peacock colours that mark the window as the settings repo.
+
+Putting a global preference in `.vscode/` makes it apply here and nowhere else; putting a repo-specific one in `vscode/` paints every project. Neither mistake errors — both files open with a comment saying which is which.
 
 ## Claude Code config
 

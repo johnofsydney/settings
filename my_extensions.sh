@@ -82,7 +82,6 @@ alias gl="git pull"
 ###################################################
 ######              spec aliases             ######
 alias rspec="nocorrect rspec"
-alias config="nocorrect config"
 alias be="bundle exec"
 alias bep="bundle exec parallel_rspec --exclude-pattern spec/system"
 alias bepc="COVERAGE=true bep"
