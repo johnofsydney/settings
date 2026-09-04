@@ -47,6 +47,4 @@ compdef _dirs d
 
 # =================================
 
-# setopt EXTENDED_HISTORY
-
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh

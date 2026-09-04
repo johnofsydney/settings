@@ -14,7 +14,7 @@ RESET=$'%{\x1b[0m%}'
 
 parse_git_branch_status() {
   # One `git status --porcelain --branch` call yields both the branch name and
-  # the dirty/clean state — the old prompt spent three git invocations per line.
+  # the dirty/clean state, at one git invocation per prompt.
   local out branch
   out=$(git status --porcelain --branch 2>/dev/null) || return  # not a git repo
 
@@ -33,7 +33,7 @@ parse_git_branch_status() {
 
 parse_mise_versions() {
   # Single `mise current` call renders both ruby and node. mise startup is the
-  # expensive part, so the old prompt (one call per language) paid it twice.
+  # expensive part, so one call must cover both languages.
   command -v mise >/dev/null 2>&1 || return
 
   mise current 2>/dev/null | awk \

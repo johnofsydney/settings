@@ -107,6 +107,9 @@ They're project-agnostic — repo name, db, and port are derived from the curren
 - `delete-finished-branches` — review and delete finished branches, safely.
 - `orphans` — report the leftovers: unused databases, worktrees and branches. Read-only.
 - `delete-stale-databases` — drop the databases `orphans` finds unused.
+- `compact-watch` — when Claude Code auto-compacted and at what context size. Read-only.
+- `update-brews` — re-run the Homebrew app install/upgrade from anywhere.
+- `scripts` — list every command here with its description. Run this rather than trusting the list above; it reads the scripts themselves.
 
 ### orphans / delete-stale-databases
 

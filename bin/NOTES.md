@@ -9,13 +9,21 @@ the others (no sourcing/calling a sibling script, no dependency on this repo's
 editing commands — duplicate a small helper (e.g. `resolve_base`) inline rather
 than factoring it into a shared file.
 
-**Accepted exception: `update-brews`.** It runs
+**Accepted exception 1: `update-brews`.** It runs
 `setup_scripts/setup_001_install_apps.sh` from this repo, so it cannot be standalone
 — being a short, memorable name for that longer path is the entire reason it exists.
 Not a defect, and not to be "fixed". It fails with an explanatory message (what it
 looked for, where, and why it might be missing) rather than a bare error, which is
-all that is wanted here. No other command in `bin/` may depend on a sibling or on
-the repo.
+all that is wanted here.
+
+**Accepted exception 2: `delete-stale-databases` calls `orphans`.** The alternative is
+two implementations of "which databases are in use", which is exactly the kind of pair
+that drifts apart until the one that deletes disagrees with the one that reports. It
+resolves `orphans` next to itself first so a stale copy earlier on `PATH` can't feed it
+a different answer, and exits with an explanation if it can't find one. The two are a
+matched pair, and are the unit that gets handed over together.
+
+No command in `bin/` may depend on a sibling or on the repo beyond these two.
 
 ---
 
@@ -150,6 +158,10 @@ from `$SETTINGS_FOLDER`. Read-only.
 No script invokes or sources another at runtime. Each carries its own copy of
 `resolve_base`; none depends on `$SETTINGS_FOLDER`, sourced functions, or a
 sibling script. Any one file runs standalone.
+
+> Superseded in part: `delete-stale-databases` arrived after this review and does
+> invoke `orphans` at runtime, deliberately — see *Accepted exception 2* under Intent.
+> Everything else in this finding still holds.
 
 **Cosmetic caveat** — two scripts mention siblings *in comments only* (harmless,
 but a dangling reference if that file is handed over alone):

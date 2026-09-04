@@ -27,7 +27,7 @@ or run any one of them on its own. They're all idempotent.
   - git first, so 002 has something to configure
 - 002 - Configure Git
   - Consistent repeatable git config
-  - add some files to global gitignore
+  - creates an empty ~/.gitignore_global and points core.excludesfile at it
 - 003 - Setup Dot Files
   - create .zshrc if required
   - source all of the settings, alias, env_variable files
