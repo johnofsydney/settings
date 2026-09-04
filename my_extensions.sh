@@ -14,6 +14,10 @@ export EDITOR="code --wait"
 
 export GIT_MERGE_AUTOEDIT=no
 
+# Keep PATH free of duplicates, first occurrence winning. The prepends below run
+# again on every `reload`, and without this each one grows PATH permanently.
+typeset -U path PATH
+
 # Put this repo's bin/ on PATH so its scripts (e.g. `worktree`) are callable
 # from any directory. $SETTINGS_FOLDER is exported by ~/.zshrc (see setup_003).
 export PATH="$SETTINGS_FOLDER/bin:$PATH"
