@@ -24,6 +24,12 @@ brew install redis
 brew install mise
 mise settings node.corepack=true
 
+# Pin a global node. mise's shims resolve a version from the project, then from the
+# global config; with neither set the shim falls through to whatever node is on PATH,
+# and setup_001 deliberately no longer brew-installs one. Without this a fresh machine
+# has no node at all outside projects that pin their own.
+mise use --global node@lts
+
 # Append mise activation to ~/.zshrc only once — fenced marker mirrors setup_003.
 MISE_MARKER="# >>> mise activate (setup_005) >>>"
 MISE_END_MARKER="# <<< mise activate (setup_005) <<<"

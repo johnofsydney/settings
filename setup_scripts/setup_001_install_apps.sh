@@ -122,7 +122,6 @@ install_formula coreutils        # GNU coreutils; use modern LS_COLORS
 install_formula gnupg
 install_formula blueutil
 install_formula zsh-syntax-highlighting
-install_formula node
 install_formula gh              # GitHub CLI, for interacting with GitHub from the terminal
 install_formula tree
 install_formula neovim

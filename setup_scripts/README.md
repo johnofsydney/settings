@@ -37,6 +37,7 @@ or run any one of them on its own. They're all idempotent.
 - 005 - Dev Runtimes
   - postgresql (asks which major version, or skip), redis, mise
   - starts both services and adds `mise activate` to .zshrc
+  - pins a global node via mise; mise owns the language runtimes, not brew
 - 006 - Claude Code Config
   - symlink the shared config in `claude/` into `~/.claude/`
   - asks whether this is the work or home machine, and links the profile it picks

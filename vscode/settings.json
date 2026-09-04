@@ -319,5 +319,9 @@
 },
   "codesnap.shutterAction": "copy",
   "claudeCode.preferredLocation": "sidebar",
-  "workbench.colorTheme": "Atom One Cyan Light"
+  "workbench.colorTheme": "Atom One Cyan Light",
+  "settingsSync.keybindingsPerPlatform": false,
+  "settingsSync.ignoredExtensions": [
+    
+  ]
 }
