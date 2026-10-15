@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+#
+# unwedge-launch — restore app launching when Spotlight, the Dock, Finder and
+# `open` all hang.
+#
+# Every GUI app launch goes through one synchronous LaunchServices call. When
+# CoreServicesUIAgent (the process that draws Gatekeeper dialogs) gets stuck
+# trying to render a prompt it cannot build, that call never returns, and every
+# launch queues behind it forever. Nothing times out and nothing is logged where
+# you would look. The app bundles are fine — exec'ing a binary directly still
+# works, because that path skips LaunchServices.
+#
+# The fix is to kill the agent and let launchd respawn it.
+#
+# Usage:
+#   unwedge-launch            probe, and fix if wedged
+#   unwedge-launch --check    probe only; exit 1 if wedged
+#   unwedge-launch --force    fix without probing first
+#
+# Exit status: 0 healthy (or repaired), 1 still wedged.
+
+set -uo pipefail
+
+PROBE_TIMEOUT=8
+FLAG=""
+
+cleanup() { [ -n "$FLAG" ] && rm -f "$FLAG"; }
+trap cleanup EXIT
+
+if [ "$(uname -s)" != "Darwin" ]; then
+  echo "unwedge-launch: macOS only" >&2
+  exit 0
+fi
+
+# Activating an already-running app exercises the whole LaunchServices path
+# without starting anything; -g keeps focus where it is.
+probe() {
+  FLAG="$(mktemp -t unwedge-launch)"
+  rm -f "$FLAG"
+  ( open -g -a Finder >/dev/null 2>&1; : > "$FLAG" ) &
+  local probe_pid=$! waited=0
+  while [ "$waited" -lt "$PROBE_TIMEOUT" ]; do
+    [ -f "$FLAG" ] && { rm -f "$FLAG"; return 0; }
+    sleep 1
+    waited=$((waited + 1))
+  done
+  pkill -9 -P "$probe_pid" 2>/dev/null
+  kill -9 "$probe_pid" 2>/dev/null
+  wait "$probe_pid" 2>/dev/null
+  rm -f "$FLAG"
+  return 1
+}
+
+stuck_opens() { pgrep -x open 2>/dev/null | wc -l | tr -d ' '; }
+
+repair() {
+  local queued
+  queued="$(stuck_opens)"
+  [ "$queued" -gt 0 ] && echo "  clearing $queued queued open call(s)"
+  pkill -9 -x open 2>/dev/null
+
+  # killall's default SIGTERM is ignored by this agent; SIGKILL is not.
+  if killall -9 CoreServicesUIAgent 2>/dev/null; then
+    echo "  restarted CoreServicesUIAgent"
+  else
+    echo "  CoreServicesUIAgent was not running"
+  fi
+  sleep 2
+}
+
+case "${1:-}" in
+  --check)
+    if probe; then echo "app launching is healthy"; exit 0; fi
+    echo "app launching is WEDGED ($(stuck_opens) open call(s) queued)" >&2
+    exit 1
+    ;;
+  --force) ;;
+  "")
+    if probe; then echo "app launching is healthy — nothing to do"; exit 0; fi
+    echo "app launching is wedged; repairing"
+    ;;
+  *)
+    echo "usage: unwedge-launch [--check|--force]" >&2
+    exit 2
+    ;;
+esac
+
+repair
+
+if probe; then
+  echo "fixed — app launching works again"
+  exit 0
+fi
+
+cat >&2 <<'MSG'
+still wedged after restarting CoreServicesUIAgent.
+
+Something else is holding the LaunchServices call. To see what, run an open in
+one terminal and sample it in another:
+
+  open -a Firefox &
+  sample $(pgrep -x open) 3
+
+Until then, launch binaries directly to bypass LaunchServices:
+
+  /Applications/Visual\ Studio\ Code.app/Contents/MacOS/Electron &
+
+Logging out and back in rebuilds the session; a reboot always works.
+MSG
+exit 1
