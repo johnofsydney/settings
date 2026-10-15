@@ -164,17 +164,35 @@ tree_pids() {   # pid -> it and every descendant
   for k in $(pgrep -P "$p" 2>/dev/null); do tree_pids "$k"; done
 }
 
+# NOT pgrep -x: a session renames itself to "claude <version>" once it has one,
+# so an exact-name match silently omits it — including the session running this.
+claude_pids() {
+  ps -eo pid,comm | awk '{ n = $2; sub(/.*\//, "", n); if (n == "claude") print $1 }'
+}
+
+# The session this script is running inside, so the report can never invite you
+# to kill your own shell.
+self_session() {
+  local p="$$" name
+  while [ -n "$p" ] && [ "$p" != "1" ]; do
+    name="$(ps -p "$p" -o comm= 2>/dev/null)" || return 0
+    case "${name##*/}" in claude*) echo "$p"; return 0 ;; esac
+    p="$(ps -p "$p" -o ppid= 2>/dev/null | tr -d ' ')"
+  done
+}
+
 sessions_section() {
   heading "Agent sessions"
 
-  local roots found=0 stale=0
-  roots="$(pgrep -x claude 2>/dev/null || true)"
+  local roots found=0 stale=0 self
+  roots="$(claude_pids || true)"
+  self="$(self_session || true)"
   if [ -z "$roots" ]; then
     printf '  %snone running%s\n' "$G" "$X"
     return
   fi
 
-  local pid tree n rss age colour
+  local pid tree n rss age colour mark
   for pid in $roots; do
     tree="$(tree_pids "$pid" | sort -u)"
     n="$(echo "$tree" | wc -l | tr -d ' ')"
@@ -183,17 +201,23 @@ sessions_section() {
     age="$(etime_seconds "$(ps -o etime= -p "$pid" 2>/dev/null | tr -d ' ')")"
     found=$((found + 1))
 
-    if [ "$age" -ge $((HOURS * 3600)) ]; then
-      colour="$R"; stale=$((stale + 1))
-    elif [ "$age" -ge $((HOURS * 1800)) ]; then
-      colour="$Y"
-    else
+    if [ "$pid" = "$self" ]; then
+      mark="  ${BOLD}← this session${X}"
       colour="$G"
-      [ "$SHOW_ALL" -eq 1 ] || continue
+    else
+      mark=""
+      if [ "$age" -ge $((HOURS * 3600)) ]; then
+        colour="$R"; stale=$((stale + 1))
+      elif [ "$age" -ge $((HOURS * 1800)) ]; then
+        colour="$Y"
+      else
+        colour="$G"
+        [ "$SHOW_ALL" -eq 1 ] || continue
+      fi
     fi
 
-    printf '  %s●%s  pid %-7s %8s across %2d process(es)   up %s\n' \
-      "$colour" "$X" "$pid" "$(human_kb "$rss")" "$n" "$(age_phrase "$age")"
+    printf '  %s●%s  pid %-7s %8s across %2d process(es)   up %s%s\n' \
+      "$colour" "$X" "$pid" "$(human_kb "$rss")" "$n" "$(age_phrase "$age")" "$mark"
   done
 
   if [ "$stale" -eq 0 ]; then

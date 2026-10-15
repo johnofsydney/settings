@@ -240,6 +240,13 @@ peak and sits far below Orca's 89. A run that shows only orca is correct, not a 
 was checked after `--family 5` appeared to miss mdworker and turned out to have caught it
 at 4.
 
+**Do not enumerate sessions with `pgrep -x claude`.** A session renames itself to
+`claude <version>` once it has one — `claude 2.1.300` here — so an exact-name match omits
+it. It omitted the session the script was being written in, which is the one case where
+being wrong is dangerous: the report invites you to kill what it lists. Enumerate on the
+basename of `comm` instead, and mark the current session by walking up from `$$` so it can
+never end up in a kill list.
+
 **Agent sessions** are the second section, judged by age. The MCP servers and node helpers
 under a `claude` process have a live parent, so they are not leaks; the session is the unit
 and killing it takes the tree. Worth running for a second reason: tooling binds at session
