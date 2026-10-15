@@ -13,16 +13,33 @@
 # The fix is to kill the agent and let launchd respawn it.
 #
 # Usage:
-#   unwedge-launch            probe, and fix if wedged
-#   unwedge-launch --check    probe only; exit 1 if wedged
-#   unwedge-launch --force    fix without probing first
+#   unwedge-launch                    probe, and fix if wedged
+#   unwedge-launch --check            probe only; exit 1 if wedged
+#   unwedge-launch --force            fix without probing first
+#   unwedge-launch --auto             as above, silent unless it repairs
+#   unwedge-launch --install-agent    run --auto on a timer via launchd
+#   unwedge-launch --uninstall-agent  remove that agent
+#   unwedge-launch --agent-status     whether it is loaded, and what it has done
 #
 # Exit status: 0 healthy (or repaired), 1 still wedged.
+#
+# The trigger looks like display reconfiguration — CoreServicesUIAgent's log
+# around a wedge is a storm of kCGSDisplayDidWake and kCGSDisplayWillReconfigure
+# as an external display returns. launchd coalesces a StartInterval missed
+# during sleep into one run shortly after wake, so the timer lands on that
+# moment without depending on a wake notification that cannot be tested for.
 
 set -uo pipefail
 
 PROBE_TIMEOUT=8
 FLAG=""
+
+AGENT_LABEL="ai.labflow.unwedge-launch"
+AGENT_PLIST="$HOME/Library/LaunchAgents/$AGENT_LABEL.plist"
+AGENT_INTERVAL=300
+CONFIRM_DELAY=20
+LOG="$HOME/Library/Logs/unwedge-launch.log"
+SELF="$(cd "$(dirname "$0")" 2>/dev/null && pwd)/$(basename "$0")"
 
 cleanup() { [ -n "$FLAG" ] && rm -f "$FLAG"; }
 trap cleanup EXIT
@@ -68,19 +85,133 @@ repair() {
   sleep 2
 }
 
+record() {
+  mkdir -p "$(dirname "$LOG")"
+  echo "$(date '+%Y-%m-%d %H:%M:%S')  $1" >> "$LOG"
+}
+
+notify() {
+  /usr/bin/osascript -e "display notification \"$1\" with title \"unwedge-launch\"" \
+    >/dev/null 2>&1
+}
+
+# A Gatekeeper prompt awaiting an answer blocks `open` exactly as a wedge does,
+# and repairing would dismiss it. Confirming twice does not tell the two apart —
+# it only keeps a loaded machine from tripping the timeout once.
+auto() {
+  probe && exit 0
+  sleep "$CONFIRM_DELAY"
+  probe && exit 0
+
+  record "wedged — repairing"
+  repair >/dev/null 2>&1
+  if probe; then
+    record "repaired"
+    notify "App launching was wedged. Repaired it."
+    exit 0
+  fi
+  # A repair that never works would otherwise notify on every run of the timer.
+  prior="$(grep -E 'repaired|STILL WEDGED' "$LOG" 2>/dev/null | tail -1)"
+  record "STILL WEDGED after restarting CoreServicesUIAgent"
+  case "$prior" in
+    *"STILL WEDGED"*) ;;
+    *) notify "App launching is wedged and the usual repair did not work." ;;
+  esac
+  exit 1
+}
+
+install_agent() {
+  mkdir -p "$(dirname "$AGENT_PLIST")" "$(dirname "$LOG")"
+  cat > "$AGENT_PLIST" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>$AGENT_LABEL</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>$SELF</string>
+    <string>--auto</string>
+  </array>
+
+  <key>StartInterval</key>
+  <integer>$AGENT_INTERVAL</integer>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>ProcessType</key>
+  <string>Background</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>$HOME/Library/Logs/unwedge-launch.launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>$HOME/Library/Logs/unwedge-launch.launchd.log</string>
+</dict>
+</plist>
+PLIST
+
+  launchctl bootout "gui/$UID/$AGENT_LABEL" 2>/dev/null
+  if launchctl bootstrap "gui/$UID" "$AGENT_PLIST" 2>/dev/null; then
+    echo "agent installed — probes every ${AGENT_INTERVAL}s, and once after each wake"
+    echo "  runs:    $SELF --auto"
+    echo "  plist:   $AGENT_PLIST"
+    echo "  repairs: $LOG"
+    record "agent installed"
+    exit 0
+  fi
+  echo "wrote $AGENT_PLIST but launchctl bootstrap failed" >&2
+  exit 1
+}
+
+uninstall_agent() {
+  launchctl bootout "gui/$UID/$AGENT_LABEL" 2>/dev/null
+  rm -f "$AGENT_PLIST"
+  record "agent removed"
+  echo "agent removed"
+  exit 0
+}
+
+agent_status() {
+  if launchctl print "gui/$UID/$AGENT_LABEL" >/dev/null 2>&1; then
+    echo "agent loaded — probing every ${AGENT_INTERVAL}s"
+  else
+    echo "agent NOT loaded"
+  fi
+  if [ -s "$LOG" ]; then
+    echo "last entries:"
+    tail -5 "$LOG" | sed 's/^/  /'
+  else
+    echo "nothing recorded yet"
+  fi
+  exit 0
+}
+
 case "${1:-}" in
   --check)
     if probe; then echo "app launching is healthy"; exit 0; fi
     echo "app launching is WEDGED ($(stuck_opens) open call(s) queued)" >&2
     exit 1
     ;;
+  --auto) auto ;;
+  --install-agent) install_agent ;;
+  --uninstall-agent) uninstall_agent ;;
+  --agent-status) agent_status ;;
   --force) ;;
   "")
     if probe; then echo "app launching is healthy — nothing to do"; exit 0; fi
     echo "app launching is wedged; repairing"
     ;;
   *)
-    echo "usage: unwedge-launch [--check|--force]" >&2
+    echo "usage: unwedge-launch [--check|--force|--auto|--install-agent|--uninstall-agent|--agent-status]" >&2
     exit 2
     ;;
 esac
