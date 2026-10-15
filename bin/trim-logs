@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+#
+# trim-logs — empty the Rails logs that have grown without anybody reading them.
+#
+# Reports by default and changes nothing; --apply does the work. Unlike the
+# database and branch cleaners this one does not get a separate deleter, because
+# what it does is not comparable: a dropped database is unrecoverable and a
+# deleted branch may be unpushed, whereas an emptied development log costs a
+# scrollback nobody was keeping.
+#
+# It TRUNCATES rather than deletes, and that is the point. A running `rails s`
+# or test process holds an open descriptor at a byte offset; unlinking the file
+# leaves it writing to an inode with no name, so the disk is never reclaimed and
+# the log silently stops appearing. Truncating in place resets the file every
+# writer already has open.
+#
+# What it will touch is deliberately narrow: files ending in .log, directly
+# inside a directory named `log`, under the root. That is the Rails convention
+# and nothing else matches it by accident.
+#
+# Usage:
+#   trim-logs                   # report what is oversized
+#   trim-logs --apply           # empty them
+#   trim-logs --size 20         # threshold in MB (default 50)
+#   trim-logs --root ~/code     # where to look (default ~/Projects)
+#   trim-logs -h
+#
+set -euo pipefail
+
+ROOT="$HOME/Projects"
+SIZE_MB=50
+APPLY=0
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --root) ROOT="${2:-}"; shift ;;
+    --root=*) ROOT="${1#*=}" ;;
+    --size) SIZE_MB="${2:-}"; shift ;;
+    --size=*) SIZE_MB="${1#*=}" ;;
+    --apply) APPLY=1 ;;
+    -h | --help) sed -n '3,28p' "$0"; exit 0 ;;
+    *) echo "unknown option: $1 (try -h)" >&2; exit 2 ;;
+  esac
+  shift
+done
+[[ "$SIZE_MB" =~ ^[0-9]+$ ]] || { echo "--size needs a number" >&2; exit 2; }
+ROOT="${ROOT/#\~/$HOME}"
+[ -d "$ROOT" ] || { echo "trim-logs: no such directory: $ROOT" >&2; exit 1; }
+
+if [ -t 1 ]; then
+  BOLD=$'\033[1m'; DIM=$'\033[2m'; G=$'\033[32m'; Y=$'\033[33m'; X=$'\033[0m'
+else
+  BOLD=""; DIM=""; G=""; Y=""; X=""
+fi
+
+heading() { printf '\n%s%s%s\n%s%s%s\n' "$BOLD" "$1" "$X" "$DIM" "$(printf '%.0s─' $(seq 1 ${#1}))" "$X"; }
+hint()    { printf '%s  %s%s\n' "$DIM" "$1" "$X"; }
+
+human_kb() {
+  awk -v k="${1:-0}" 'BEGIN{ if (k>=1048576) printf "%.1f GB", k/1048576; else if (k>=1024) printf "%.0f MB", k/1024; else printf "%d KB", k }'
+}
+
+TMP="$(mktemp -t trim-logs)"
+trap 'rm -f "$TMP"' EXIT
+
+# -path '*/log/*' keeps it to Rails' own directory; -prune keeps find out of the
+# dependency trees, which are far larger than anything being searched.
+find "$ROOT" \
+  \( -name node_modules -o -name .git -o -name tmp -o -name vendor \) -prune -o \
+  -type f -name '*.log' -path '*/log/*' -size +"${SIZE_MB}"M -print 2>/dev/null \
+  | sort > "$TMP"
+
+COUNT="$(wc -l < "$TMP" | tr -d ' ')"
+
+heading "Oversized logs under ${ROOT/#$HOME/~}"
+
+if [ "$COUNT" -eq 0 ]; then
+  printf '  %snothing over %s MB%s\n\n' "$G" "$SIZE_MB" "$X"
+  exit 0
+fi
+
+TOTAL=0
+while read -r f; do
+  [ -f "$f" ] || continue
+  kb=$(( $(stat -f '%z' "$f" 2>/dev/null || echo 0) / 1024 ))
+  TOTAL=$(( TOTAL + kb ))
+  printf '  %s%8s%s  %s\n' "$Y" "$(human_kb "$kb")" "$X" "${f/#$HOME/~}"
+done < "$TMP"
+
+printf '\n  %s%s across %s file(s)%s\n' "$BOLD" "$(human_kb "$TOTAL")" "$COUNT" "$X"
+
+if [ "$APPLY" -eq 0 ]; then
+  hint "Empty them with: ${BOLD}trim-logs --apply${X}${DIM}   (truncates; a running process keeps writing)"
+  echo
+  exit 0
+fi
+
+heading "Emptying"
+EMPTIED=0
+while read -r f; do
+  [ -f "$f" ] || continue
+  if : > "$f" 2>/dev/null; then
+    EMPTIED=$(( EMPTIED + 1 ))
+    printf '  %s✓%s  %s\n' "$G" "$X" "${f/#$HOME/~}"
+  else
+    printf '  %s✗%s  %s %s(not writable)%s\n' "$Y" "$X" "${f/#$HOME/~}" "$DIM" "$X"
+  fi
+done < "$TMP"
+
+printf '\n  %sreclaimed %s from %s file(s)%s\n\n' "$BOLD" "$(human_kb "$TOTAL")" "$EMPTIED" "$X"

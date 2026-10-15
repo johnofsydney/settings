@@ -215,3 +215,69 @@ only the justification is project-specific.
       `node_install_step` reads the lockfile, missing `overmind` is skipped with a
       note. A `WORKTREE_STOP_CMD` override is still not offered — the socket path is
       overmind-specific, so another manager needs more than a command name.)*
+
+---
+
+## `stale-processes` — background work nothing is driving (added 2026-10-15)
+
+Read-only, like `orphans`, and for the same reason: the thing that kills stays separate.
+
+**Two kinds, found two different ways.** The obvious rule — "a process whose parent is
+launchd is an orphan" — is wrong on macOS and was tried and rejected. On this machine 53
+processes match it and every one is an ordinary XPC service: a pure false-positive
+generator. It is called out in the header so nobody adds it back.
+
+What works instead is counting launchd **label families**. An app that registers a job per
+invocation and never tears it down leaves one label per run, differing only by a trailing
+UUID. Orca does exactly this: 89 live `application.com.stablyai.orca.computer-use.*` jobs,
+oldest nearly two days, each costing 0.01s of CPU and then sitting there. They are
+genuinely launchd's children, so nothing about their parentage looks wrong — only the
+count does.
+
+The default threshold is 12. `com.apple.mdworker.shared` is the only other family that
+gets near it, fluctuating between 4 and 10 as Spotlight indexes, so 12 clears Spotlight's
+peak and sits far below Orca's 89. A run that shows only orca is correct, not a bug — this
+was checked after `--family 5` appeared to miss mdworker and turned out to have caught it
+at 4.
+
+**Agent sessions** are the second section, judged by age. The MCP servers and node helpers
+under a `claude` process have a live parent, so they are not leaks; the session is the unit
+and killing it takes the tree. Worth running for a second reason: tooling binds at session
+start, so an old session is stale against anything installed since.
+
+## `memcheck` — is this machine actually short of memory (added 2026-10-15)
+
+Free memory answers nothing on macOS. The machine this was written on sat at 131 MB free
+and was fine-ish, because the compressor was holding 33 GB of pages squeezed into 5.5 GB at
+6:1. Free pages are therefore deliberately *not* part of the verdict.
+
+Swap is. The verdict reads healthy / under pressure / thrashing off swap used as a
+percentage, with swapouts-since-boot shown alongside as a rate rather than a state — 148 GB
+swapped out against a 1-day uptime says it has been paging hard even during a calm moment.
+`--quiet` prints the verdict alone and exits non-zero when it is not healthy, so it can gate
+something later.
+
+Two awk traps, both hit and fixed: `ps -o rss,comm` splits a path containing spaces across
+fields, so "Google Chrome" arrives as "Google"; and the formatting pass needs `-F'\t'` or it
+re-splits the grouped labels it was handed. Both silently produce plausible-looking wrong
+names rather than failing.
+
+## `trim-logs` — empty oversized Rails logs (added 2026-10-15)
+
+The one of the three that changes anything, and the only one without a separate deleter.
+That is a deliberate departure from the `orphans` / `delete-stale-databases` pattern rather
+than an oversight: a dropped database is unrecoverable and a deleted branch may be unpushed,
+whereas an emptied development log costs a scrollback nobody was keeping. Report by default,
+`--apply` to act.
+
+**It truncates, it does not delete**, and the distinction is the whole design. A running
+`rails s` or test process holds an open descriptor at a byte offset; unlinking the file
+leaves it writing to an unnamed inode, so the disk is never reclaimed and the log silently
+stops appearing. Verified rather than assumed: with a writer holding an open fd across an
+`--apply`, the inode was unchanged, the size went 2 MB to 144 bytes, and the writer carried
+on appending.
+
+The match is kept narrow on purpose — `*.log` directly inside a directory named `log`, with
+`node_modules`, `.git`, `tmp` and `vendor` pruned. Checked against a fixture: a `.log` under
+`node_modules/*/log/`, a `.log` outside a `log/` directory, and a `.txt` inside one are all
+correctly ignored.

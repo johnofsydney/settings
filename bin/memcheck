@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+#
+# memcheck — whether this machine is actually short of memory, in one screen.
+#
+# READ-ONLY. "Free memory" on macOS answers almost nothing: the compressor and
+# the swap file absorb pressure long before anything feels slow, so a machine
+# can sit at 50 MB free and be fine, or at 50 MB free and be thrashing, and
+# Activity Monitor's green bar does not distinguish them.
+#
+# The three numbers that do:
+#
+#   Swap used. Pressure that the compressor could not absorb. Sustained high
+#   swap is the clearest sign there is not enough RAM for the workload.
+#
+#   Compression ratio. What the compressor is holding versus what it costs.
+#   A high ratio is the machine coping well; it is also how a machine stays
+#   usable at almost no free pages, which is why free pages alone mislead.
+#
+#   Swapouts since boot. Rate, not state — a large number against a short
+#   uptime means it has been paging hard, even if right now it looks calm.
+#
+# Usage:
+#   memcheck              # the report
+#   memcheck --top 15     # how many consumers to list
+#   memcheck --quiet      # verdict line only; exit 1 if not healthy
+#   memcheck -h
+#
+set -euo pipefail
+
+TOP=10
+QUIET=0
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --top) TOP="${2:-}"; shift ;;
+    --top=*) TOP="${1#*=}" ;;
+    -q | --quiet) QUIET=1 ;;
+    -h | --help) sed -n '3,28p' "$0"; exit 0 ;;
+    *) echo "unknown option: $1 (try -h)" >&2; exit 2 ;;
+  esac
+  shift
+done
+[[ "$TOP" =~ ^[0-9]+$ ]] || { echo "--top needs a number" >&2; exit 2; }
+
+if [ -t 1 ]; then
+  BOLD=$'\033[1m'; DIM=$'\033[2m'; G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[31m'; X=$'\033[0m'
+else
+  BOLD=""; DIM=""; G=""; Y=""; R=""; X=""
+fi
+
+heading() { printf '\n%s%s%s\n%s%s%s\n' "$BOLD" "$1" "$X" "$DIM" "$(printf '%.0s─' $(seq 1 ${#1}))" "$X"; }
+hint()    { printf '%s  %s%s\n' "$DIM" "$1" "$X"; }
+
+# Page size is 16K on Apple Silicon and 4K on Intel; vm_stat states it.
+VM="$(vm_stat)"
+PAGE="$(echo "$VM" | head -1 | sed -E 's/.*page size of ([0-9]+) bytes.*/\1/')"
+[[ "$PAGE" =~ ^[0-9]+$ ]] || PAGE=4096
+
+pages() {   # vm_stat label -> megabytes
+  echo "$VM" | awk -F: -v want="$1" -v p="$PAGE" '
+    index($1, want) == 1 { gsub(/[ .]/, "", $2); printf "%.0f", $2 * p / 1048576; found=1 }
+    END { if (!found) print 0 }'
+}
+
+RAM_MB=$(( $(sysctl -n hw.memsize) / 1048576 ))
+FREE=$(pages "Pages free")
+ACTIVE=$(pages "Pages active")
+INACTIVE=$(pages "Pages inactive")
+WIRED=$(pages "Pages wired down")
+COMP_HELD=$(pages "Pages occupied by compressor")
+COMP_STORED=$(pages "Pages stored in compressor")
+SWAPOUTS=$(pages "Swapouts")
+
+SWAP_TOTAL=$(sysctl -n vm.swapusage | sed -E 's/.*total = ([0-9.]+)M.*/\1/' | cut -d. -f1)
+SWAP_USED=$(sysctl -n vm.swapusage | sed -E 's/.*used = ([0-9.]+)M.*/\1/' | cut -d. -f1)
+[ "${SWAP_TOTAL:-0}" -gt 0 ] 2>/dev/null || SWAP_TOTAL=0
+[ "${SWAP_USED:-0}" -ge 0 ] 2>/dev/null || SWAP_USED=0
+
+if [ "$SWAP_TOTAL" -gt 0 ]; then
+  SWAP_PCT=$(( SWAP_USED * 100 / SWAP_TOTAL ))
+else
+  SWAP_PCT=0
+fi
+
+RATIO=$(awk -v s="$COMP_STORED" -v h="$COMP_HELD" 'BEGIN{ if (h > 0) printf "%.1f", s/h; else print "0.0" }')
+UP="$(uptime | sed -E 's/.*up ([^,]*(,[^,]*(min|hr|hrs|day|days))?).*/\1/' | sed 's/^ *//')"
+
+# ---------------------------------------------------------------------------
+# Verdict. Swap is the headline; free pages are deliberately not a criterion,
+# because a healthy compressed machine runs with almost none.
+# ---------------------------------------------------------------------------
+if [ "$SWAP_PCT" -ge 75 ]; then
+  VERDICT="${R}THRASHING${X}"; CODE=1
+  WHY="swap is ${SWAP_PCT}% full — the compressor has run out of room"
+elif [ "$SWAP_PCT" -ge 25 ]; then
+  VERDICT="${Y}UNDER PRESSURE${X}"; CODE=1
+  WHY="swap is ${SWAP_PCT}% full — coping, with no headroom for a big build or test run"
+else
+  VERDICT="${G}HEALTHY${X}"; CODE=0
+  WHY="swap is ${SWAP_PCT}% full"
+fi
+
+if [ "$QUIET" -eq 1 ]; then
+  printf '%s — %s\n' "$VERDICT" "$WHY"
+  exit "$CODE"
+fi
+
+printf '%smemcheck%s  %s%s RAM · up %s%s\n' \
+  "$BOLD" "$X" "$DIM" "$(awk -v m="$RAM_MB" 'BEGIN{printf "%.0f GB", m/1024}')" "$UP" "$X"
+
+heading "Verdict"
+printf '  %s — %s\n' "$VERDICT" "$WHY"
+
+heading "Where the memory is"
+printf '  %-28s %8s MB\n' "wired (not reclaimable)" "$WIRED"
+printf '  %-28s %8s MB\n' "active" "$ACTIVE"
+printf '  %-28s %8s MB\n' "inactive" "$INACTIVE"
+printf '  %-28s %8s MB\n' "free" "$FREE"
+printf '  %-28s %8s MB  %sholding %s MB at %sx%s\n' \
+  "compressor" "$COMP_HELD" "$DIM" "$COMP_STORED" "$RATIO" "$X"
+printf '  %-28s %8s MB  %sof %s MB%s\n' "swap used" "$SWAP_USED" "$DIM" "$SWAP_TOTAL" "$X"
+printf '  %-28s %8s MB  %ssince boot%s\n' "swapped out" "$SWAPOUTS" "$DIM" "$X"
+
+heading "Biggest consumers"
+ps -A -o rss=,comm= | awk -v top="$TOP" '
+  {
+    rss = $1;
+    path = $0; sub(/^[[:space:]]*[0-9]+[[:space:]]+/, "", path);
+    n = path; sub(/.*\//, "", n);
+    if (path ~ /Google Chrome/) n = "Chrome";
+    else if (path ~ /Visual Studio Code|Code Helper|VSCode/) n = "VS Code";
+    else if (path ~ /claude|chrome-devtools-mcp/) n = "Claude Code + MCP";
+    else if (path ~ /Orca/) n = "Orca";
+    else if (path ~ /Slack/) n = "Slack";
+    else if (path ~ /Spotify/) n = "Spotify";
+    s[n] += rss; c[n]++
+  }
+  END { for (i in s) printf "%d\t%d\t%s\n", s[i], c[i], i }' \
+  | sort -rn | head -"$TOP" \
+  | awk -F'\t' -v d="$DIM" -v x="$X" '{ printf "  %8.0f MB  %s%3d proc%s  %s\n", $1/1024, d, $2, x, $3 }'
+
+if [ "$CODE" -ne 0 ]; then
+  hint "Quitting the biggest consumer frees its compressed and swapped pages too, not just its RSS."
+  hint "${BOLD}stale-processes${X}${DIM} finds the ones nothing is driving any more."
+fi
+echo
+exit "$CODE"

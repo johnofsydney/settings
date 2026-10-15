@@ -1,0 +1,215 @@
+#!/usr/bin/env bash
+#
+# stale-processes — find background work nothing is driving any more.
+#
+# READ-ONLY. It kills nothing, ever. Each section ends with the command that
+# does, so this stays the one place you look and the killers stay separate.
+#
+# Two kinds, found two different ways, because the obvious rule does not work:
+#
+#   Leaked launchd jobs. An app that registers a job per invocation and never
+#   tears it down accumulates one label per run, differing only by a trailing
+#   UUID. Counting label FAMILIES finds those. Counting processes does not, and
+#   neither does looking for orphans: each one is a job launchd started and
+#   still lists, so its parent is launchd legitimately.
+#
+#   Stale agent sessions. A long-lived `claude` and everything it spawned — MCP
+#   servers, node helpers. Those children have a live parent, so they are not
+#   leaks; the session is the unit, and killing it takes the tree with it.
+#   Sessions are judged by AGE because a working session looks exactly like an
+#   abandoned one.
+#
+# Deliberately NOT reported: processes whose parent is launchd but which
+# launchd does not list. On macOS those are ordinary XPC services — on this
+# machine 53 of them, every one a false positive.
+#
+# Usage:
+#   stale-processes                 # the report
+#   stale-processes --family 12     # flag a launchd label family at this count
+#   stale-processes --hours 12      # flag agent sessions older than this
+#   stale-processes --all           # also list families and sessions below the line
+#   stale-processes -h
+#
+set -euo pipefail
+
+FAMILY_MIN=12
+HOURS=12
+SHOW_ALL=0
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --family) FAMILY_MIN="${2:-}"; shift ;;
+    --family=*) FAMILY_MIN="${1#*=}" ;;
+    --hours) HOURS="${2:-}"; shift ;;
+    --hours=*) HOURS="${1#*=}" ;;
+    -a | --all) SHOW_ALL=1 ;;
+    -h | --help) sed -n '3,32p' "$0"; exit 0 ;;
+    *) echo "unknown option: $1 (try -h)" >&2; exit 2 ;;
+  esac
+  shift
+done
+[[ "$FAMILY_MIN" =~ ^[0-9]+$ ]] || { echo "--family needs a number" >&2; exit 2; }
+[[ "$HOURS" =~ ^[0-9]+$ ]] || { echo "--hours needs a number" >&2; exit 2; }
+
+if [ -t 1 ]; then
+  BOLD=$'\033[1m'; DIM=$'\033[2m'; G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[31m'; X=$'\033[0m'
+else
+  BOLD=""; DIM=""; G=""; Y=""; R=""; X=""
+fi
+
+heading() { printf '\n%s%s%s\n%s%s%s\n' "$BOLD" "$1" "$X" "$DIM" "$(printf '%.0s─' $(seq 1 ${#1}))" "$X"; }
+hint()    { printf '%s  %s%s\n' "$DIM" "$1" "$X"; }
+
+TMP="$(mktemp -d -t stale-processes)"
+trap 'rm -rf "$TMP"' EXIT
+
+human_kb() {   # kilobytes -> "1.2 GB"
+  awk -v k="${1:-0}" 'BEGIN{ if (k>=1048576) printf "%.1f GB", k/1048576; else if (k>=1024) printf "%.0f MB", k/1024; else printf "%d KB", k }'
+}
+
+# macOS ps has no etimes, only etime as [[dd-]hh:]mm:ss.
+etime_seconds() {   # etime -> seconds
+  awk -v e="${1:-0}" 'BEGIN{
+    d=0; split(e, a, "-");
+    if (length(a) == 2) { d = a[1]; e = a[2] }
+    n = split(e, t, ":");
+    if (n == 3) s = t[1]*3600 + t[2]*60 + t[3];
+    else if (n == 2) s = t[1]*60 + t[2];
+    else s = t[1];
+    print d*86400 + s
+  }'
+}
+
+age_phrase() {   # seconds -> "3d 4h" | "4h 12m" | "12m"
+  awk -v s="${1:-0}" 'BEGIN{
+    d = int(s/86400); h = int((s%86400)/3600); m = int((s%3600)/60);
+    if (d) printf "%dd %dh", d, h; else if (h) printf "%dh %dm", h, m; else printf "%dm", m
+  }'
+}
+
+rss_of() {   # pids… -> total kilobytes
+  [ $# -gt 0 ] || { echo 0; return; }
+  ps -o rss= -p "$(printf '%s,' "$@" | sed 's/,$//')" 2>/dev/null | awk '{s+=$1} END{print s+0}'
+}
+
+oldest_of() {   # pids… -> seconds
+  [ $# -gt 0 ] || { echo 0; return; }
+  local best=0 secs e
+  for e in $(ps -o etime= -p "$(printf '%s,' "$@" | sed 's/,$//')" 2>/dev/null); do
+    secs="$(etime_seconds "$e")"
+    [ "$secs" -gt "$best" ] && best="$secs"
+  done
+  echo "$best"
+}
+
+# ---------------------------------------------------------------------------
+# Leaked launchd job families
+# ---------------------------------------------------------------------------
+launchd_section() {
+  heading "Leaked launchd jobs"
+
+  # pid<TAB>label, with the per-invocation suffix stripped in the same pass:
+  # a trailing UUID, or a trailing number, is what varies between registrations.
+  launchctl list 2>/dev/null | awk 'NR>1 {print $1 "\t" $3}' \
+    | sed -E 's/\.[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$//; s/\.[0-9]+$//' \
+    > "$TMP/families"
+
+  local total flagged=0
+  total="$(wc -l < "$TMP/families" | tr -d ' ')"
+
+  cut -f2 "$TMP/families" | sort | uniq -c | sort -rn > "$TMP/counts"
+
+  while read -r count fam; do
+    [ -n "$fam" ] || continue
+    if [ "$count" -lt "$FAMILY_MIN" ]; then
+      [ "$SHOW_ALL" -eq 1 ] && [ "$count" -gt 1 ] || continue
+    fi
+
+    local pids rss age colour
+    pids="$(awk -F'\t' -v f="$fam" '$2==f && $1 ~ /^[0-9]+$/ {print $1}' "$TMP/families")"
+    # shellcheck disable=SC2086
+    rss="$(rss_of $pids)"
+    # shellcheck disable=SC2086
+    age="$(oldest_of $pids)"
+
+    if [ "$count" -ge "$FAMILY_MIN" ]; then
+      colour="$R"; flagged=$((flagged + 1))
+    else
+      colour="$G"
+    fi
+
+    printf '  %s%3d%s  %-58s %8s  oldest %s\n' \
+      "$colour" "$count" "$X" "$(echo "$fam" | cut -c1-58)" "$(human_kb "$rss")" "$(age_phrase "$age")"
+  done < "$TMP/counts"
+
+  if [ "$flagged" -eq 0 ]; then
+    printf '  %sno family at or above %d jobs%s\n' "$G" "$FAMILY_MIN" "$X"
+    hint "$total launchd jobs registered in total"
+    return
+  fi
+
+  hint "$total launchd jobs registered in total"
+  hint "A family this size means the app registers a job per invocation and never tears it down."
+  hint "Tear one down, substituting the family shown above:"
+  hint "  ${BOLD}launchctl list | awk '\$3 ~ /^FAMILY/ {print \$3}' | xargs -n1 -I{} launchctl bootout gui/\$UID/{}${X}"
+  hint "They come back as the app runs again; that is what makes this housekeeping, not a fix."
+}
+
+# ---------------------------------------------------------------------------
+# Stale agent sessions
+# ---------------------------------------------------------------------------
+tree_pids() {   # pid -> it and every descendant
+  local p="$1" k
+  echo "$p"
+  for k in $(pgrep -P "$p" 2>/dev/null); do tree_pids "$k"; done
+}
+
+sessions_section() {
+  heading "Agent sessions"
+
+  local roots found=0 stale=0
+  roots="$(pgrep -x claude 2>/dev/null || true)"
+  if [ -z "$roots" ]; then
+    printf '  %snone running%s\n' "$G" "$X"
+    return
+  fi
+
+  local pid tree n rss age colour
+  for pid in $roots; do
+    tree="$(tree_pids "$pid" | sort -u)"
+    n="$(echo "$tree" | wc -l | tr -d ' ')"
+    # shellcheck disable=SC2086
+    rss="$(rss_of $tree)"
+    age="$(etime_seconds "$(ps -o etime= -p "$pid" 2>/dev/null | tr -d ' ')")"
+    found=$((found + 1))
+
+    if [ "$age" -ge $((HOURS * 3600)) ]; then
+      colour="$R"; stale=$((stale + 1))
+    elif [ "$age" -ge $((HOURS * 1800)) ]; then
+      colour="$Y"
+    else
+      colour="$G"
+      [ "$SHOW_ALL" -eq 1 ] || continue
+    fi
+
+    printf '  %s●%s  pid %-7s %8s across %2d process(es)   up %s\n' \
+      "$colour" "$X" "$pid" "$(human_kb "$rss")" "$n" "$(age_phrase "$age")"
+  done
+
+  if [ "$stale" -eq 0 ]; then
+    printf '  %s%d session(s), none older than %dh%s\n' "$G" "$found" "$HOURS" "$X"
+    [ "$SHOW_ALL" -eq 1 ] || hint "${BOLD}stale-processes --all${X}${DIM} lists them anyway"
+    return
+  fi
+
+  hint "$found session(s) running, $stale older than ${HOURS}h"
+  hint "The MCP servers and node helpers under a session are its children, not leaks —"
+  hint "closing the session reclaims the whole tree. ${BOLD}kill <pid>${X}${DIM} if it has no window left."
+  hint "Tooling binds at session start, so an old one is stale against installed plugins too."
+}
+
+printf '%sstale-processes%s  %sfamilies ≥%d · sessions >%dh%s\n' \
+  "$BOLD" "$X" "$DIM" "$FAMILY_MIN" "$HOURS" "$X"
+launchd_section
+sessions_section
+echo
