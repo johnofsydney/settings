@@ -1,0 +1,179 @@
+#!/usr/bin/env bash
+#
+# scratchpad — open (or locate) a Claude Code session scratchpad.
+#
+# Claude Code gives each session a scratchpad directory for working files, at
+#   <root>/<cwd-with-slashes-as-dashes>/<session-uuid>/scratchpad
+# where <root> is /private/tmp/claude-$UID on macOS and /tmp/claude-$UID elsewhere.
+# The session uuid changes every session, so the path is never worth memorising.
+#
+# With no arguments it opens the newest non-empty scratchpad for the project you
+# are standing in, falling back to the newest anywhere. Run it from inside a repo
+# (any subdirectory) and you get that repo's.
+#
+# Empty scratchpads are skipped: there is nothing in them to open. Set
+# CLAUDE_SCRATCH_ROOT to override where it looks.
+#
+# These live under /tmp. macOS deletes them, and they do not survive the session —
+# anything worth keeping belongs in a repo.
+#
+# Written for the /bin/bash 3.2 that ships with macOS: no mapfile, no compgen -G.
+
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+scratchpad — open a Claude Code session scratchpad
+
+  scratchpad              open the current project's newest scratchpad in VS Code
+  scratchpad lab-1422     open the newest one whose project matches "lab-1422"
+  scratchpad -p           print the path instead — cd "$(scratchpad -p)"
+  scratchpad -l [-n N]    list recent scratchpads, newest first
+  scratchpad -a           ignore the current project, consider all of them
+USAGE
+}
+
+root=${CLAUDE_SCRATCH_ROOT:-}
+if [[ -z $root ]]; then
+  for candidate in "/private/tmp/claude-$(id -u)" "/tmp/claude-$(id -u)"; do
+    if [[ -d $candidate ]]; then root=$candidate; break; fi
+  done
+fi
+if [[ -z $root || ! -d $root ]]; then
+  echo "scratchpad: no scratchpad root (looked for /private/tmp/claude-$(id -u))" >&2
+  exit 1
+fi
+
+mode=open
+all=false
+limit=15
+filter=
+
+while (( $# )); do
+  case $1 in
+    -p|--path) mode=path ;;
+    -l|--list) mode=list ;;
+    -a|--all) all=true ;;
+    -n) shift; limit=${1:?-n needs a number} ;;
+    -h|--help) usage; exit 0 ;;
+    -*) echo "scratchpad: unknown option $1" >&2; exit 1 ;;
+    *) filter=$1 ;;
+  esac
+  shift
+done
+
+mtime_of() { stat -f '%m' "$1" 2>/dev/null || stat -c '%Y' "$1"; }
+
+has_files() {
+  local f
+  for f in "$1"/*; do
+    [[ -e $f ]] && return 0
+  done
+  return 1
+}
+
+# Newest mtime of the directory or anything directly inside it. A directory's own
+# mtime moves when a file is added or removed, not when one is edited in place.
+newest_mtime() {
+  local dir=$1 newest f t
+  newest=$(mtime_of "$dir")
+  for f in "$dir"/*; do
+    [[ -e $f ]] || continue
+    t=$(mtime_of "$f")
+    (( t > newest )) && newest=$t
+  done
+  printf '%s' "$newest"
+}
+
+# A project's directory name is its absolute path with slashes turned into dashes.
+slug_of() { printf '%s' "${1//\//-}"; }
+
+# Walk up from here so it works from a subdirectory; the git toplevel goes first.
+current_slugs() {
+  local dir
+  dir=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || true)
+  [[ -n $dir ]] && slug_of "$dir" && echo
+  dir=$PWD
+  while [[ $dir != / ]]; do
+    slug_of "$dir"; echo
+    dir=$(dirname "$dir")
+  done
+}
+
+rows=()
+while IFS= read -r pad; do
+  has_files "$pad" || continue
+  rows[${#rows[@]}]="$(newest_mtime "$pad")|$(basename "$(dirname "$(dirname "$pad")")")|$pad"
+done < <(find "$root" -maxdepth 3 -type d -name scratchpad 2>/dev/null)
+
+if (( ${#rows[@]} == 0 )); then
+  echo "scratchpad: no non-empty scratchpads under $root" >&2
+  exit 1
+fi
+
+sorted=()
+while IFS= read -r line; do
+  sorted[${#sorted[@]}]=$line
+done < <(printf '%s\n' "${rows[@]}" | sort -t'|' -k1,1nr)
+rows=("${sorted[@]}")
+
+matching() {
+  local want=$1 row
+  for row in "${rows[@]}"; do
+    [[ ${row#*|} == *"$want"* ]] && printf '%s\n' "$row"
+  done
+  return 0
+}
+
+collect() {
+  chosen=()
+  local line
+  while IFS= read -r line; do
+    [[ -n $line ]] && chosen[${#chosen[@]}]=$line
+  done < <(matching "$1")
+}
+
+chosen=()
+if [[ -n $filter ]]; then
+  collect "$filter"
+  if (( ${#chosen[@]} == 0 )); then
+    echo "scratchpad: nothing matching '$filter'" >&2
+    exit 1
+  fi
+elif ! $all; then
+  while IFS= read -r slug; do
+    [[ -z $slug ]] && continue
+    collect "$slug"
+    (( ${#chosen[@]} )) && break
+  done < <(current_slugs)
+fi
+(( ${#chosen[@]} )) || chosen=("${rows[@]}")
+
+human_age() {
+  local secs=$(( $(date +%s) - $1 ))
+  if (( secs < 3600 )); then printf '%dm' $(( secs / 60 ))
+  elif (( secs < 86400 )); then printf '%dh' $(( secs / 3600 ))
+  else printf '%dd' $(( secs / 86400 )); fi
+}
+
+case $mode in
+  list)
+    printf '%-6s %-5s %s\n' AGE FILES PROJECT
+    for row in "${chosen[@]:0:$limit}"; do
+      IFS='|' read -r mtime project pad <<<"$row"
+      printf '%-6s %-5s %s\n' "$(human_age "$mtime")" "$(ls -1 "$pad" | wc -l | tr -d ' ')" "$project"
+      printf '       %s\n' "$pad"
+    done
+    ;;
+  path)
+    IFS='|' read -r _ _ pad <<<"${chosen[0]}"
+    printf '%s\n' "$pad"
+    ;;
+  open)
+    IFS='|' read -r mtime project pad <<<"${chosen[0]}"
+    echo "$pad  ($(human_age "$mtime") old, $project)"
+    if command -v code >/dev/null 2>&1; then code "$pad"
+    elif [[ -n ${EDITOR:-} ]]; then "$EDITOR" "$pad"
+    else open "$pad"; fi
+    ;;
+esac

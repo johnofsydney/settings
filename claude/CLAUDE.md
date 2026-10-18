@@ -19,6 +19,59 @@ Not covered by the above, because they are documentation rather than commentary:
 Good: `// Stripe returns 200 with an error body; status alone is not success.`
 Bad:  `// Increment the retry counter`
 
+## Gem APIs — documented and public only
+
+**Build against the API a gem documents, not the one it happens to expose.** A method that is
+`public` in Ruby but absent from the gem's README is an internal, and a method the gem marks
+`private` is not mine to call or to override. Both move on a minor version bump without a
+CHANGELOG entry, and the breakage lands in production rather than in CI.
+
+The test is two questions, in order: **is it in the gem's own documentation, and is it public?**
+`public` alone is not enough — attribute readers on internal objects are public by accident of
+Ruby, not by intent.
+
+- **Prefer the documented seam, even where it costs more.** A configuration option, a documented
+  callback, a published query method. If the documented route is slower or more verbose, that is
+  the price of a dependency that can be upgraded.
+- **Shadowing a gem's method is the case to be most suspicious of**, because it keeps working right
+  up until the signature changes, and then fails somewhere unrelated to the override.
+- **Reaching through a chain is reaching deeper than it looks.** `thing.internals.collection[key]`
+  depends on three objects, not one, and the undocumented link in the middle is the one that moves.
+
+**If there is genuinely no documented route, it is an exception and it gets paid for — all four:**
+
+1. A comment on the class saying the gem API is private or undocumented, and the version verified
+   against.
+2. A comment on the method stating the contract and what breaks if the gem changes.
+3. **A boundary spec asserting the gem's side of the bargain** — the visibility, the signature, the
+   default, the chain — so an upgrade is a red build naming the assumption, not a behaviour change
+   nobody made.
+4. The version constraint tightened far enough that the bump cannot arrive unnoticed.
+
+An exception without the boundary spec is not an exception, it is a bet. Ask me before taking one.
+
+## Never push — ask first
+
+**No `git push` happens without me saying so, in any repository.** Ask, then wait for the
+answer. Offering to push is welcome; pushing because it seemed like the moment is not.
+
+CI starts over on every push, so a branch pushed four times burns four full runs on a shared
+queue. Batch the commits locally and push once, when I say.
+
+- **Committing needs no permission.** `git add` and `git commit` are allowed outright and must
+  stay that way — run them without asking, as often as is useful. It is the push that costs.
+- **A push is always its own Bash call.** Never `git add && git commit && git push` on one
+  line: the ask rule matches the whole command, so a single prompt ends up covering the add
+  and the commit too, and I cannot approve the commit without also approving the push. Run
+  add and commit, say what they did, then ask about the push in a separate call.
+- **This covers anything that pushes as a side effect.** `gh pr create` on a branch whose
+  commits are not yet on the remote pushes it for you, and so does any script or skill step
+  that ends in a push.
+- **A refusal is not a reason to work around it.** If I say no or say nothing, the work sits
+  on the local branch; it does not go out by another route.
+- `~/.claude/settings.json` backs this with an `ask` rule on `Bash(git push)` so the prompt
+  appears even when this instruction is missed. That rule is the floor, not the point.
+
 ## Reviewing my own PRs
 
 **Review in a session that didn't write the code. Annotate in the session that did.**
@@ -37,6 +90,33 @@ instead of attacking it; an annotator who doesn't know will write generic commen
 
 Don't encode any of this by editing the mattpocock skills under
 `~/.claude/plugins/cache/mattpocock/` — `npx skills update` overwrites them.
+
+## Every code review asks two questions beyond the diff
+
+This applies to **any** review, whoever wrote the code and whatever tool is driving — `/code-review`,
+`/deep-review`, `/explain-to-senior`, `/pre-pr`, or reading a diff by hand. The skills that
+live in `~/.claude/skills/` carry it themselves; this section is what makes it bind on
+`mattpocock-skills:code-review`, which I must not edit in the plugin cache.
+
+Mutation testing asks whether the code is pinned. A spec review asks whether it matches the ticket.
+A standards review asks whether it follows the rules. All three take the change's own frame as
+given, so all three can agree with each other and still miss the same defect.
+
+Ask both of these as well, and write the answer down even when it is "nothing to report":
+
+1. **Who controls each input, and can an untrusted one outrank a trusted one?** List every
+   identifier, parameter and field the change reads, and name who mints each — this system, the
+   user, or a third party. Where several are matched in sequence or by precedence, check that a
+   value an outsider controls cannot win over one this system minted.
+
+2. **Where does control go when this code returns, and do its guarantees still hold there?** Follow
+   every redirect, enqueue, callback, broadcast and hand-off past the edge of the diff. A permission
+   checked here is not a permission checked there; a validation applied here is not applied after
+   the hand-off. Answering this means reading code the diff does not touch.
+
+**The ticket is not the oracle for either question.** A detailed ticket routinely blesses the exact
+assumption that is wrong, and a review that defers to it inherits the blind spot rather than
+covering it. Say so plainly when the answer contradicts what the ticket decided.
 
 ## Dotfiles / shell config
 

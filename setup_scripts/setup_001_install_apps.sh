@@ -128,6 +128,7 @@ install_formula neovim
 install_formula ripgrep
 install_formula jq
 install_formula hunk
+install_formula spotify_player
 
 # fzf needs a post-install step to wire up shell integrations, and that hook has
 # to re-run whenever the binary changes.
